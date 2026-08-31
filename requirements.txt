@@ -1,0 +1,17 @@
+llama-index-core>=0.11.0
+llama-index-vector-stores-postgres>=0.2.0
+llama-index-embeddings-google-genai>=0.1.0
+llama-index-llms-google-genai>=0.1.0
+google-genai>=0.3.0
+python-dotenv>=1.0.0
+psycopg2-binary>=2.9.0
+
+# Reranker (cross-encoder postprocessor, phase 5)
+sentence-transformers>=2.7.0
+
+# Orchestration: serving graph + eval graph (phases 3-6)
+langgraph>=0.2.0
+
+# Service boundary (phase 6 / FastAPI endpoints throughout)
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
