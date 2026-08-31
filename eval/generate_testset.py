@@ -15,10 +15,10 @@ import re
 import psycopg2
 import psycopg2.extras
 from llama_index.core.llms import ChatMessage
-from llama_index.llms.google_genai import GoogleGenAI
+from llama_index.llms.anthropic import Anthropic
 
 import db
-from common import JUDGE_MODEL, get_pg_dsn
+from common import JUDGE_MODEL, get_llm, get_pg_dsn
 
 QUESTION_PROMPT = """Read the following passage and write ONE question that can be
 answered using ONLY this passage. The question should be specific enough that
@@ -44,7 +44,7 @@ def fetch_chunks(n: int) -> list:
     return random.sample(rows, min(n, len(rows)))
 
 
-def generate_question(chunk_text: str, llm: GoogleGenAI) -> dict | None:
+def generate_question(chunk_text: str, llm: Anthropic) -> dict | None:
     response = llm.chat(
         [ChatMessage(role="user", content=QUESTION_PROMPT.format(chunk_text=chunk_text))]
     )
@@ -60,7 +60,7 @@ def generate_question(chunk_text: str, llm: GoogleGenAI) -> dict | None:
 
 def main(n: int = 20) -> None:
     db.init_schema()
-    llm = GoogleGenAI(model=JUDGE_MODEL)
+    llm = get_llm(model=JUDGE_MODEL)
     chunks = fetch_chunks(n)
 
     created = 0

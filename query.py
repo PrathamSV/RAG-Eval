@@ -10,7 +10,7 @@ POST /query once the API is running).
 Run: python query.py
 """
 
-from llama_index.core import VectorStoreIndex
+from llama_index.core import VectorStoreIndex, get_response_synthesizer
 
 from common import configure_llamaindex_settings, get_vector_store
 
@@ -21,14 +21,19 @@ vector_store = get_vector_store()
 
 def main() -> None:
     index = VectorStoreIndex.from_vector_store(vector_store)
-
-    query_engine = index.as_query_engine(similarity_top_k=5)
+    retriever = index.as_retriever(similarity_top_k=5)
+    synthesizer = get_response_synthesizer()
 
     question = input("Ask a question: ").strip()
     if not question:
         raise SystemExit("No question entered.")
 
-    response = query_engine.query(question)
+    print("Embedding question + retrieving top-k chunks from pgvector...", flush=True)
+    nodes = retriever.retrieve(question)
+    print(f"Retrieved {len(nodes)} chunk(s). Generating answer...", flush=True)
+
+    response = synthesizer.synthesize(question, nodes)
+    print("Done.", flush=True)
 
     print("\n--- Answer ---")
     print(response)

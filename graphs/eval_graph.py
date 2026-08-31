@@ -23,10 +23,9 @@ from llama_index.core import VectorStoreIndex
 from llama_index.core.llms import ChatMessage
 from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.core.schema import NodeWithScore
-from llama_index.llms.google_genai import GoogleGenAI
 
 import db
-from common import GENERATION_MODEL, configure_llamaindex_settings, get_vector_store
+from common import GENERATION_MODEL, configure_llamaindex_settings, get_llm, get_vector_store
 from eval.metrics import generation_metrics, retrieval_metrics
 
 RETRIEVE_TOP_K = 10
@@ -54,12 +53,15 @@ def _index() -> VectorStoreIndex:
 
 
 def retrieve(state: EvalQueryState) -> dict:
+    qid = state["query_id"]
+    print(f"  [query {qid}] retrieving top-{RETRIEVE_TOP_K} chunks...", flush=True)
     start = time.perf_counter()
     index = _index()
     retriever = index.as_retriever(similarity_top_k=RETRIEVE_TOP_K)
     nodes = retriever.retrieve(state["question"])
 
     if state.get("use_reranker"):
+        print(f"  [query {qid}] reranking to top-{state.get('rerank_top_n', 4)}...", flush=True)
         reranker = SentenceTransformerRerank(
             model="cross-encoder/ms-marco-MiniLM-L-6-v2",
             top_n=state.get("rerank_top_n", 4),
@@ -68,16 +70,20 @@ def retrieve(state: EvalQueryState) -> dict:
 
     latency_ms = (time.perf_counter() - start) * 1000
     ids = [n.node.node_id for n in nodes]
+    print(f"  [query {qid}] retrieved {len(ids)} chunk(s) in {latency_ms:.0f}ms", flush=True)
     return {"retrieved_nodes": nodes, "retrieved_ids": ids, "latency_ms": latency_ms}
 
 
 def compute_retrieval_metrics(state: EvalQueryState) -> dict:
     scores = retrieval_metrics(state["retrieved_ids"], state["gold_chunk_ids"])
+    print(f"  [query {state['query_id']}] retrieval metrics: {scores}", flush=True)
     return {"retrieval_scores": scores}
 
 
 def generate(state: EvalQueryState) -> dict:
-    llm = GoogleGenAI(model=GENERATION_MODEL)
+    qid = state["query_id"]
+    print(f"  [query {qid}] generating answer ({GENERATION_MODEL})...", flush=True)
+    llm = get_llm()
     context = "\n\n".join(n.node.get_content() for n in state["retrieved_nodes"])
     prompt = (
         "Answer the question using ONLY the context below. If the context "
@@ -85,14 +91,18 @@ def generate(state: EvalQueryState) -> dict:
         f"Context:\n{context}\n\nQuestion: {state['question']}\n\nAnswer:"
     )
     answer = str(llm.chat([ChatMessage(role="user", content=prompt)])).strip()
+    print(f"  [query {qid}] answer generated ({len(answer)} chars)", flush=True)
     return {"answer": answer}
 
 
 def compute_generation_metrics(state: EvalQueryState) -> dict:
+    qid = state["query_id"]
+    print(f"  [query {qid}] scoring faithfulness / relevance / correctness...", flush=True)
     context_chunks = [n.node.get_content() for n in state["retrieved_nodes"]]
     scores = generation_metrics(
         state["question"], state["answer"], context_chunks, state.get("reference_answer")
     )
+    print(f"  [query {qid}] generation metrics: {scores}", flush=True)
     return {"generation_scores": scores}
 
 
@@ -155,29 +165,51 @@ def run_eval(use_reranker: bool = True, rerank_top_n: int = 4, top_k: int = RETR
     run_id = db.create_eval_run(config)
     graph = get_eval_query_graph()
 
+    print(
+        f"Starting eval run {run_id} over {len(queries)} quer"
+        f"{'y' if len(queries) == 1 else 'ies'} "
+        f"(reranker={'on' if use_reranker else 'off'}, top_k={top_k})...",
+        flush=True,
+    )
+
     try:
-        for q in queries:
-            result = graph.invoke(
-                {
-                    "query_id": q["id"],
-                    "question": q["query_text"],
-                    "gold_chunk_ids": q["gold_chunk_ids"],
-                    "reference_answer": q["reference_answer"],
-                    "use_reranker": use_reranker,
-                    "rerank_top_n": rerank_top_n,
-                }
+        for i, q in enumerate(queries, start=1):
+            print(
+                f"[{i}/{len(queries)}] query {q['id']}: {q['query_text'][:80]!r}",
+                flush=True,
             )
-            db.insert_eval_result(
-                run_id=run_id,
-                query_id=q["id"],
-                retrieved_chunk_ids=result["retrieved_ids"],
-                latency_ms=result["latency_ms"],
-                metrics=result["combined"],
-                generated_answer=result["answer"],
-            )
+            try:
+                result = graph.invoke(
+                    {
+                        "query_id": q["id"],
+                        "question": q["query_text"],
+                        "gold_chunk_ids": q["gold_chunk_ids"],
+                        "reference_answer": q["reference_answer"],
+                        "use_reranker": use_reranker,
+                        "rerank_top_n": rerank_top_n,
+                    }
+                )
+                db.insert_eval_result(
+                    run_id=run_id,
+                    query_id=q["id"],
+                    retrieved_chunk_ids=result["retrieved_ids"],
+                    latency_ms=result["latency_ms"],
+                    metrics=result["combined"],
+                    generated_answer=result["answer"],
+                )
+            except Exception as exc:
+                # Surface exactly which query broke and why before this
+                # propagates up and marks the whole run 'failed' below —
+                # otherwise a mid-run crash just looks like the process hung.
+                print(f"[{i}/{len(queries)}] FAILED on query {q['id']}: {exc!r}", flush=True)
+                raise
+            print(f"[{i}/{len(queries)}] ok — persisted", flush=True)
         db.finish_eval_run(run_id, status="complete")
+        print(f"Eval run {run_id} complete — {len(queries)} quer"
+              f"{'y' if len(queries) == 1 else 'ies'} evaluated.", flush=True)
     except Exception:
         db.finish_eval_run(run_id, status="failed")
+        print(f"Eval run {run_id} marked failed.", flush=True)
         raise
 
     return run_id

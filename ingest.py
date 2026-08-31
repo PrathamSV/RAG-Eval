@@ -11,12 +11,6 @@ from common import configure_llamaindex_settings, get_vector_store
 
 configure_llamaindex_settings()
 
-# Default chunk_size is 1024 tokens — bigger than our whole sample doc, so
-# nothing would split and every query would retrieve the same single chunk.
-# Shrink it so retrieval actually has multiple candidates to choose from.
-Settings.chunk_size = 200
-Settings.chunk_overlap = 20
-
 vector_store = get_vector_store()
 
 
@@ -25,21 +19,30 @@ def main() -> None:
     # gemini-embedding-001 as of mid-2026) — fine for a handful of docs,
     # but add a delay between batches if you ingest a large corpus and
     # hit 429 errors.
+    print("Loading documents from ./data...", flush=True)
     documents = SimpleDirectoryReader("./data").load_data()
     if not documents:
         raise SystemExit("No documents found in ./data — add a file and re-run.")
+    print(f"Loaded {len(documents)} document(s). Connecting to pgvector...", flush=True)
 
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
 
+    print(
+        f"Chunking (size={Settings.chunk_size}, overlap={Settings.chunk_overlap}) "
+        "and embedding into pgvector — progress below:",
+        flush=True,
+    )
     # from_documents handles chunking (via the default node parser),
     # embedding each chunk, and writing rows into the pgvector table.
+    # show_progress=True renders a per-node tqdm bar so a large corpus
+    # doesn't look stuck while it embeds.
     VectorStoreIndex.from_documents(
         documents,
         storage_context=storage_context,
         show_progress=True,
     )
 
-    print(f"Ingested {len(documents)} document(s) into pgvector table 'rag_chunks'.")
+    print(f"Done. Ingested {len(documents)} document(s) into pgvector table 'rag_chunks'.", flush=True)
 
 
 if __name__ == "__main__":

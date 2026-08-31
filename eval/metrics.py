@@ -9,17 +9,17 @@ import re
 from typing import Sequence
 
 from llama_index.core.llms import ChatMessage
-from llama_index.llms.google_genai import GoogleGenAI
+from llama_index.llms.anthropic import Anthropic
 
-from common import JUDGE_MODEL
+from common import JUDGE_MODEL, get_llm
 
 _judge_llm = None
 
 
-def _get_judge_llm() -> GoogleGenAI:
+def _get_judge_llm() -> Anthropic:
     global _judge_llm
     if _judge_llm is None:
-        _judge_llm = GoogleGenAI(model=JUDGE_MODEL)
+        _judge_llm = get_llm(model=JUDGE_MODEL)
     return _judge_llm
 
 
@@ -75,21 +75,33 @@ def retrieval_metrics(retrieved_ids: Sequence[str], gold_ids: Sequence[str]) -> 
 # ---------------------------------------------------------------------------
 
 
-def _judge_score(prompt: str) -> float:
+def _judge_score(prompt: str, label: str) -> float:
     """Ask the judge LLM for a JSON object {"score": 0-1, "reason": "..."}
-    and return the score. Defaults to 0.0 on any parse failure so a flaky
-    judge response degrades a metric rather than crashing an eval run."""
+    and return the score. Defaults to 0.0 only on a parse failure (the judge
+    responded but not in the expected format) so a flaky judge response
+    degrades a metric rather than crashing an eval run — a genuine call
+    failure (auth, rate limit, network) still propagates as an exception
+    rather than being silently scored 0.0.
+
+    `label` is just for progress output — this is the actual network call
+    in the metrics pipeline, so it's the spot most likely to look "stuck"
+    if the judge model is slow or rate-limited."""
+    print(f"    judging {label}...", flush=True)
     llm = _get_judge_llm()
     response = llm.chat([ChatMessage(role="user", content=prompt)])
     text = str(response)
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
+        print(f"    judging {label}: no parseable JSON in judge response — scoring 0.0", flush=True)
         return 0.0
     try:
         data = json.loads(match.group(0))
-        return float(data.get("score", 0.0))
+        score = float(data.get("score", 0.0))
     except (ValueError, json.JSONDecodeError, TypeError):
+        print(f"    judging {label}: malformed JSON in judge response — scoring 0.0", flush=True)
         return 0.0
+    print(f"    judging {label}: {score}", flush=True)
+    return score
 
 
 def faithfulness(answer: str, context_chunks: Sequence[str]) -> float:
@@ -108,7 +120,7 @@ ANSWER:
 
 Respond with ONLY a JSON object: {{"score": <0.0-1.0>, "reason": "<one sentence>"}}
 where 1.0 means fully faithful and 0.0 means entirely unsupported."""
-    return _judge_score(prompt)
+    return _judge_score(prompt, label="faithfulness")
 
 
 def answer_relevance(question: str, answer: str) -> float:
@@ -124,7 +136,7 @@ ANSWER:
 
 Respond with ONLY a JSON object: {{"score": <0.0-1.0>, "reason": "<one sentence>"}}
 where 1.0 means directly and fully relevant, 0.0 means off-topic."""
-    return _judge_score(prompt)
+    return _judge_score(prompt, label="answer_relevance")
 
 
 def answer_correctness(answer: str, reference_answer: str) -> float:
@@ -142,7 +154,7 @@ CANDIDATE ANSWER:
 
 Respond with ONLY a JSON object: {{"score": <0.0-1.0>, "reason": "<one sentence>"}}
 where 1.0 means factually equivalent, 0.0 means contradicts or misses the key fact."""
-    return _judge_score(prompt)
+    return _judge_score(prompt, label="answer_correctness")
 
 
 def generation_metrics(

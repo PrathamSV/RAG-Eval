@@ -1,8 +1,18 @@
 llama-index-core>=0.11.0
 llama-index-vector-stores-postgres>=0.2.0
+
+# Embeddings — Anthropic has no embeddings API, so these stay on Gemini.
 llama-index-embeddings-google-genai>=0.1.0
-llama-index-llms-google-genai>=0.1.0
 google-genai>=0.3.0
+
+# Generation + judge LLM
+llama-index-llms-anthropic>=0.4.0
+# Pinned below 1.0: anthropic SDK v1.0 (Aug 2026) dropped the temperature/
+# top_p/top_k kwargs from Messages.create(), which llama-index-llms-anthropic
+# (as of 0.11.10) still passes -> TypeError. Unpin once a llama-index-llms-anthropic
+# release supports the v1.x anthropic SDK.
+anthropic>=0.40.0,<1.0.0
+
 python-dotenv>=1.0.0
 psycopg2-binary>=2.9.0
 
