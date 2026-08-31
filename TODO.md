@@ -1,0 +1,4 @@
+- Question text from generated Q-A set can sometimes get truncated
+- Enhance the Q-A generator to have multiple relevant chunks for a question. This actually gives some use to the retrieval metrics that are being calculated.
+- precision can be deceiving. precision@k can be low as a product of just have fewer relevant chunks. It should always be considered in context of other metrics
+- work on serving & eval graphs

@@ -4,7 +4,7 @@ A full RAG stack: LlamaIndex handles chunking/embedding/retrieval, Postgres +
 pgvector stores the vectors *and* the eval tables, LangGraph orchestrates two
 distinct workflows (a corrective-RAG serving graph and a fan-out/fan-in eval
 graph), and FastAPI is the service boundary over all of it. Gemini (free
-tier, via Google AI Studio) provides the embedding model and both the
+tier, via Google AI Studio) provides the embedding model, and Anthropic for both the
 generation and judge LLMs.
 
 ## Quick start
@@ -25,8 +25,6 @@ python query.py                           # phase-1 sanity check: ask a question
 uvicorn api.main:app --reload
 ```
 
-Everything below is also reachable as a plain script if you'd rather not run
-the API — see "Files" for the script entry points.
 
 ## Building an eval set and running eval
 
@@ -36,22 +34,9 @@ python -c "from graphs.eval_graph import run_eval; print(run_eval(use_reranker=F
 python -c "from graphs.eval_graph import run_eval; print(run_eval(use_reranker=True))"
 ```
 
-Then compare the two runs — this is the number that answers "did the
-reranker earn its keep":
-
 ```
 GET /eval/compare?run_a=<no-reranker-run-id>&run_b=<reranker-run-id>
 ```
-
-## A note on the free tier
-
-`gemini-2.5-flash` and `gemini-embedding-001` are both usable on a free
-Google AI Studio key, but the free tier is rate-limited (roughly 10
-requests/minute as of mid-2026, tightening further on requests/day — check
-current numbers at https://ai.google.dev/gemini-api/docs/rate-limits since
-Google adjusts these periodically). The eval graph and testset generator
-each make one LLM call per query per metric, so a 20-query eval run can
-easily burn 60-80 calls — budget accordingly or move to a paid tier.
 
 ## Architecture
 
@@ -70,7 +55,7 @@ easily burn 60-80 calls — budget accordingly or move to a paid tier.
 - `eval_results` — per-query, per-run scores for every metric (`hit_rate`, `recall`, `precision`, `mrr`, `faithfulness`, `answer_relevance`, `answer_correctness`, `latency_ms`).
 - `feedback` — thumbs up/down from production traffic, for online eval.
 
-### Serving graph (`graphs/serving_graph.py`)
+### Serving graph (`graphs/serving_graph.py`) [WIP]
 
 ```
 rewrite_query → retrieve → rerank → check_sufficiency
@@ -84,7 +69,7 @@ below `SUFFICIENCY_THRESHOLD`, the question gets rewritten and retried
 called. Every response includes citations (node id, score, snippet) and a
 self-reported faithfulness score.
 
-### Eval graph (`graphs/eval_graph.py`)
+### Eval graph (`graphs/eval_graph.py`) [WIP]
 
 Per query:
 
@@ -114,12 +99,3 @@ row (`status='complete'`/`'failed'`).
 - `graphs/eval_graph.py` — the fan-out/fan-in eval pipeline described above, plus `run_eval()` which drives it over the whole eval set. Also `POST /eval/run`.
 - `api/main.py` — FastAPI app wiring all of the above into HTTP endpoints, plus `GET /eval/compare` for before/after diffing and `POST /feedback`.
 - `data/sample_doc.txt` — starter document so ingestion works out of the box. Drop in your own `.txt`/`.pdf`/`.md` files and re-run `ingest.py` (then regenerate the eval set, since gold chunk ids are tied to specific ingested chunks).
-
-## What's next (phase 6 polish, not yet built)
-
-The plan's last phase — an automated regression gate — is intentionally left
-as an exercise: a small CI script that calls `run_eval()` against a fixed
-regression set on every change and fails the build if `avg_hit_rate` or
-`avg_faithfulness` (from `GET /eval/runs/{id}`) drops past a threshold vs.
-the last known-good run. Latency/cost logging per query (already captured
-per-result as `latency_ms`) would feed the same dashboard.
