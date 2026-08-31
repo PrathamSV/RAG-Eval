@@ -1,4 +1,4 @@
-# RAG MVP — ingestion, retrieval, generation, orchestration, eval
+# RAG Evaluation Project
 
 A full RAG stack: LlamaIndex handles chunking/embedding/retrieval, Postgres +
 pgvector stores the vectors *and* the eval tables, LangGraph orchestrates two
