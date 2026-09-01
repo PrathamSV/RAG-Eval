@@ -1,4 +1,6 @@
-- Question text from generated Q-A set can sometimes get truncated
-- Enhance the Q-A generator to have multiple relevant chunks for a question. This actually gives some use to the retrieval metrics that are being calculated.
-- precision can be deceiving. precision@k can be low as a product of just have fewer relevant chunks. It should always be considered in context of other metrics
+- ~~Enhance the Q-A generator to have multiple relevant chunks for a question. This actually gives some use to the retrieval metrics that are being calculated.~~ Done — `eval/generate_testset.py` now generates a mix of single-hop and multi-hop questions, with a verification pass that discards multi-hop candidates actually answerable from one passage alone.
+- Precision can be deceiving. precision@k can be low as a product of just have fewer relevant chunks. It should always be considered in context of other metrics
 - work on serving & eval graphs
+- Look at file metadata? Prioritize more recent files and /or have a trustworthiness metric in metadata to prioritze information when it is conflicting
+- Make the program work for logs, otherdatabases etc. rather than just plain text
+- Run embedding model locally. Free gemini embedding is heavily rate-limited.

@@ -15,18 +15,17 @@ model/vendor.
 import os
 
 from dotenv import load_dotenv
-from google.genai.types import EmbedContentConfig
 from llama_index.core import Settings
-from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.anthropic import Anthropic
 from llama_index.vector_stores.postgres import PGVectorStore
 
 load_dotenv()
 
-EMBED_DIM = 768  # gemini-embedding-001 defaults to 3072; truncated via MRL
+EMBED_DIM = 384  # bge-small-en-v1.5's native output dimension
 CHUNKS_TABLE = "rag_chunks"  # PGVectorStore stores this as table "data_rag_chunks"
 
-EMBEDDING_MODEL = "gemini-embedding-001"
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 
 # --- Generation / judge models -------------------------------------------
 # Both are overridable via env var so you can swap models (e.g. to try a
@@ -61,12 +60,12 @@ def get_llm(model: str = GENERATION_MODEL) -> Anthropic:
 
 
 def configure_llamaindex_settings() -> None:
-    """Point LlamaIndex's global Settings at Claude (generation) + Gemini
-    (embedding). Safe to call more than once (idempotent)."""
+    """Point LlamaIndex's global Settings at Claude (generation) + a local
+    HuggingFace embedding model (embedding)."""
     Settings.llm = get_llm(GENERATION_MODEL)
-    Settings.embed_model = GoogleGenAIEmbedding(
+    Settings.embed_model = HuggingFaceEmbedding(
         model_name=EMBEDDING_MODEL,
-        embedding_config=EmbedContentConfig(output_dimensionality=EMBED_DIM),
+        device="cpu",
     )
 
 

@@ -38,6 +38,7 @@ class FeedbackRequest(BaseModel):
 
 class GenerateTestsetRequest(BaseModel):
     n: int = 20
+    multi_hop_fraction: float = 0.5
 
 
 class EvalRunRequest(BaseModel):
@@ -49,6 +50,18 @@ class EvalRunRequest(BaseModel):
 @app.on_event("startup")
 def startup() -> None:
     db.init_schema()
+
+
+@app.post("/admin/truncate")
+def truncate_all(include_chunks: bool = True) -> dict:
+    """Wipes eval_queries/eval_runs/eval_results/feedback (and, by default,
+    the ingested pgvector chunks in data_rag_chunks too) and resets their id
+    counters. Pass ?include_chunks=false to keep the ingested corpus and
+    only clear eval/feedback data. Irreversible — there's no confirmation
+    step, so treat this as a dev/reset tool rather than something wired
+    into a UI button without a guard in front of it."""
+    truncated = db.truncate_all(include_chunks=include_chunks)
+    return {"status": "ok", "truncated": truncated}
 
 
 @app.post("/ingest")
@@ -77,7 +90,7 @@ def query(req: QueryRequest) -> QueryResponse:
 
 @app.post("/eval/generate-testset")
 def generate_testset(req: GenerateTestsetRequest) -> dict:
-    generate_testset_main(req.n)
+    generate_testset_main(req.n, req.multi_hop_fraction)
     return {"status": "ok", "requested": req.n}
 
 

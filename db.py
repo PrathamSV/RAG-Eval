@@ -150,6 +150,40 @@ def fetch_run_details(run_id: int) -> list:
             return cur.fetchall()
 
 
+def truncate_all(include_chunks: bool = True) -> list:
+    """Wipe every row from the eval_queries / eval_runs / eval_results /
+    feedback tables (and, by default, the pgvector-managed data_rag_chunks
+    table too) via TRUNCATE ... RESTART IDENTITY CASCADE — resets the
+    SERIAL id counters as well, so a fresh run after truncating starts back
+    at id 1 instead of continuing from wherever it left off.
+
+    Each table is checked with to_regclass first and skipped if it doesn't
+    exist yet (e.g. data_rag_chunks before the first ingest, or the eval
+    tables before init_schema has run), so this is safe to call at any
+    point in the app's lifecycle rather than erroring on a missing table.
+
+    include_chunks=False leaves data_rag_chunks (the ingested/embedded
+    corpus) alone and only clears the eval + feedback tables — useful when
+    you want to rerun eval generation without re-ingesting and re-embedding
+    the whole corpus.
+
+    Returns the list of table names that were actually truncated."""
+    tables = ["eval_results", "eval_queries", "eval_runs", "feedback"]
+    if include_chunks:
+        tables.append("data_rag_chunks")
+
+    truncated = []
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for table in tables:
+                cur.execute("SELECT to_regclass(%s)", (table,))
+                if cur.fetchone()[0] is None:
+                    continue
+                cur.execute(f'TRUNCATE TABLE "{table}" RESTART IDENTITY CASCADE')
+                truncated.append(table)
+    return truncated
+
+
 def insert_feedback(
     query_text: str, answer_text: str, rating: int, retrieved_chunk_ids: list | None = None
 ) -> None:

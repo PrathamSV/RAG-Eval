@@ -29,10 +29,22 @@ uvicorn api.main:app --reload
 ## Building an eval set and running eval
 
 ```bash
-python -m eval.generate_testset --n 20   # or: POST /eval/generate-testset {"n": 20}
+python -m eval.generate_testset --n 20   # ~50/50 single-hop vs multi-hop by default
+python -m eval.generate_testset --n 20 --multi-hop-fraction 0.3 --semantic-fraction 0.7
+# or: POST /eval/generate-testset {"n": 20, "multi_hop_fraction": 0.5, "semantic_fraction": 0.5}
 python -c "from graphs.eval_graph import run_eval; print(run_eval(use_reranker=False))"
 python -c "from graphs.eval_graph import run_eval; print(run_eval(use_reranker=True))"
 ```
+
+`generate_testset` builds three kinds of questions: single-hop (one gold
+chunk), multi-hop over two *adjacent* chunks, and multi-hop over two
+*semantically related but non-adjacent* chunks (found via embedding
+similarity in `data_rag_chunks`). Every multi-hop candidate is verified
+with a follow-up judge call before being kept — the most common failure
+mode is an LLM writing a "multi-hop" question that's secretly answerable
+from just one of the two passages, which would silently defeat the point.
+`--multi-hop-fraction` controls single- vs multi-hop mix; `--semantic-fraction`
+controls adjacent vs semantic mix within the multi-hop share.
 
 ```
 GET /eval/compare?run_a=<no-reranker-run-id>&run_b=<reranker-run-id>

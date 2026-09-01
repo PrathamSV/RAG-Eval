@@ -1,9 +1,8 @@
 llama-index-core>=0.11.0
 llama-index-vector-stores-postgres>=0.2.0
 
-# Embeddings — Anthropic has no embeddings API, so these stay on Gemini.
-llama-index-embeddings-google-genai>=0.1.0
-google-genai>=0.3.0
+# Embeddings -- Local HF embedding model
+llama-index-embeddings-huggingface>=0.3.0
 
 # Generation + judge LLM
 llama-index-llms-anthropic>=0.4.0

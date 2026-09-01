@@ -10,6 +10,8 @@ from llama_index.core import Settings, SimpleDirectoryReader, StorageContext, Ve
 from common import configure_llamaindex_settings, get_vector_store
 
 configure_llamaindex_settings()
+Settings.chunk_size = 512 # 1024 default chunk size can be too large for multi-hop questions.
+Settings.chunk_overlap = round(Settings.chunk_size * 0.15)
 
 vector_store = get_vector_store()
 
