@@ -14,6 +14,7 @@ import db
 from eval.generate_testset import main as generate_testset_main
 from graphs.eval_graph import run_eval
 from graphs.serving_graph import run_serving_graph
+from eval.metrics import bootstrap_ci, correlation, paired_significance_test
 
 app = FastAPI(title="RAG MVP")
 
@@ -96,9 +97,12 @@ def generate_testset(req: GenerateTestsetRequest) -> dict:
 
 @app.post("/eval/run")
 def eval_run(req: EvalRunRequest) -> dict:
-    run_id = run_eval(
-        use_reranker=req.use_reranker, rerank_top_n=req.rerank_top_n, top_k=req.top_k
-    )
+    try:
+        run_id = run_eval(
+            use_reranker=req.use_reranker, rerank_top_n=req.rerank_top_n, top_k=req.top_k
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     return {"run_id": run_id}
 
 
@@ -107,7 +111,17 @@ def get_run(run_id: int) -> dict:
     run, agg = db.fetch_run_summary(run_id)
     if run is None:
         raise HTTPException(404, "run not found")
-    return {"run": run, "metrics": agg}
+
+    metrics_by_query = db.fetch_run_metrics_by_query(run_id)
+    metric_names = [
+        "hit_rate", "recall", "precision", "mrr", "latency_ms",
+        "faithfulness", "answer_relevance", "answer_correctness",
+    ]
+    confidence_intervals = {
+        m: bootstrap_ci([row.get(m) for row in metrics_by_query.values()])
+        for m in metric_names
+    }
+    return {"run": run, "metrics": agg, "confidence_intervals": confidence_intervals}
 
 
 @app.get("/eval/runs/{run_id}/details")
@@ -117,22 +131,71 @@ def get_run_details(run_id: int) -> list:
 
 @app.get("/eval/compare")
 def compare_runs(run_a: int, run_b: int) -> dict:
-    """Diffs two eval runs — e.g. reranker off (run_a) vs on (run_b) — so
-    a component's value shows up as an MRR/faithfulness delta instead of
-    an assumption."""
+    """Diffs two eval runs -- e.g. reranker off (run_a) vs on (run_b) -- so
+    a component's value shows up as a metric delta with a paired
+    significance test attached, instead of a bare number you have to take
+    on faith with ~20 queries."""
     _, agg_a = db.fetch_run_summary(run_a)
     _, agg_b = db.fetch_run_summary(run_b)
     if agg_a is None or agg_b is None:
         raise HTTPException(404, "one or both runs not found")
 
+    metrics_by_query_a = db.fetch_run_metrics_by_query(run_a)
+    metrics_by_query_b = db.fetch_run_metrics_by_query(run_b)
+    common_query_ids = sorted(set(metrics_by_query_a) & set(metrics_by_query_b))
+
+    metric_names = [
+        "hit_rate", "recall", "precision", "mrr", "latency_ms",
+        "faithfulness", "answer_relevance", "answer_correctness",
+    ]
+
     delta = {}
-    for key in agg_a:
-        if key == "n_queries":
-            continue
-        va, vb = agg_a[key], agg_b[key]
+    significance = {}
+    for key in metric_names:
+        va, vb = agg_a.get(f"avg_{key}"), agg_b.get(f"avg_{key}")
         delta[key] = (vb - va) if (va is not None and vb is not None) else None
 
-    return {"run_a": run_a, "run_b": run_b, "metrics_a": agg_a, "metrics_b": agg_b, "delta": delta}
+        values_a = [metrics_by_query_a[qid].get(key) for qid in common_query_ids]
+        values_b = [metrics_by_query_b[qid].get(key) for qid in common_query_ids]
+        significance[key] = paired_significance_test(values_a, values_b)
+
+    return {
+        "run_a": run_a,
+        "run_b": run_b,
+        "metrics_a": agg_a,
+        "metrics_b": agg_b,
+        "delta": delta,
+        "significance": significance,
+        "n_common_queries": len(common_query_ids),
+    }
+
+
+@app.get("/eval/runs/{run_id}/correlations")
+def get_run_correlations(run_id: int) -> dict:
+    """Correlates each retrieval metric (hit_rate/recall/precision/mrr)
+    against each generation metric (faithfulness/answer_relevance/
+    answer_correctness) across the run's queries -- checks whether better
+    retrieval actually predicts better generation for this run/corpus,
+    rather than assuming precision@k-style metrics matter just because
+    they're computed (see TODO.md's note that precision@k can be
+    misleading in isolation)."""
+    metrics_by_query = db.fetch_run_metrics_by_query(run_id)
+    if not metrics_by_query:
+        raise HTTPException(404, "run not found or has no results")
+
+    retrieval_metric_names = ["hit_rate", "recall", "precision", "mrr"]
+    generation_metric_names = ["faithfulness", "answer_relevance", "answer_correctness"]
+    rows = list(metrics_by_query.values())
+
+    matrix = {}
+    for r_metric in retrieval_metric_names:
+        r_values = [row.get(r_metric) for row in rows]
+        matrix[r_metric] = {
+            g_metric: correlation(r_values, [row.get(g_metric) for row in rows])
+            for g_metric in generation_metric_names
+        }
+
+    return {"run_id": run_id, "n_queries": len(rows), "correlations": matrix}
 
 
 @app.post("/feedback")

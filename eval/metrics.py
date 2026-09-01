@@ -7,6 +7,8 @@ answer relevance, answer correctness) that score generation quality.
 import json
 import re
 from typing import Sequence
+import numpy as np
+from scipy import stats as scipy_stats
 
 from llama_index.core.llms import ChatMessage
 from llama_index.llms.anthropic import Anthropic
@@ -166,4 +168,81 @@ def generation_metrics(
         "answer_correctness": (
             answer_correctness(answer, reference_answer) if reference_answer else None
         ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Statistical rigor: is a metric delta real, and do retrieval metrics
+# actually predict generation quality?
+# ---------------------------------------------------------------------------
+
+
+def bootstrap_ci(values: Sequence[float], n_resamples: int = 2000, ci: float = 0.95, seed: int | None = None) -> dict:
+    """Bootstrap confidence interval for the mean of `values`. With ~20
+    eval queries, a bare average can look meaningfully different between
+    two configs purely by which queries happened to be sampled -- this
+    quantifies how much the mean could plausibly wobble on a re-sample of
+    the same query set, so a metric can be reported as e.g.
+    "0.72 [0.58, 0.85]" instead of a bare point estimate."""
+    clean = np.array([v for v in values if v is not None], dtype=float)
+    if len(clean) == 0:
+        return {"mean": None, "ci_low": None, "ci_high": None, "n": 0, "n_resamples": n_resamples}
+    rng = np.random.default_rng(seed)
+    n = len(clean)
+    means = np.array([rng.choice(clean, size=n, replace=True).mean() for _ in range(n_resamples)])
+    alpha = 1 - ci
+    lo, hi = np.percentile(means, [100 * alpha / 2, 100 * (1 - alpha / 2)])
+    return {
+        "mean": float(clean.mean()),
+        "ci_low": float(lo),
+        "ci_high": float(hi),
+        "n": n,
+        "n_resamples": n_resamples,
+    }
+
+
+def paired_significance_test(values_a: Sequence[float], values_b: Sequence[float]) -> dict:
+    """Paired test on per-query (b - a) deltas -- appropriate here because
+    two eval runs share the same eval_queries, so each query contributes a
+    matched pair rather than two independent samples. Uses Wilcoxon
+    signed-rank (nonparametric -- doesn't assume deltas are normally
+    distributed, which they usually aren't for metrics bounded in [0,1]
+    with small n) and falls back to a paired t-test if Wilcoxon can't run."""
+    pairs = [(a, b) for a, b in zip(values_a, values_b) if a is not None and b is not None]
+    if len(pairs) < 2:
+        return {"test": None, "statistic": None, "p_value": None, "n": len(pairs)}
+    a = np.array([p[0] for p in pairs])
+    b = np.array([p[1] for p in pairs])
+    if np.allclose(a, b):
+        return {"test": "none", "statistic": 0.0, "p_value": 1.0, "n": len(pairs)}
+    try:
+        stat, p = scipy_stats.wilcoxon(a, b)
+        test_name = "wilcoxon"
+    except ValueError:
+        # Wilcoxon needs enough non-zero deltas; fall back for small/degenerate cases
+        stat, p = scipy_stats.ttest_rel(a, b)
+        test_name = "paired_t"
+    return {"test": test_name, "statistic": float(stat), "p_value": float(p), "n": len(pairs)}
+
+
+def correlation(values_a: Sequence[float], values_b: Sequence[float]) -> dict:
+    """Spearman rank correlation (primary -- doesn't assume a linear
+    relationship, which matters since hit_rate is binary and others are
+    bounded ratios) plus Pearson, between two per-query metric series. Used
+    to check whether a retrieval metric (e.g. recall) actually predicts a
+    generation outcome (e.g. faithfulness) rather than assuming it does."""
+    pairs = [(a, b) for a, b in zip(values_a, values_b) if a is not None and b is not None]
+    if len(pairs) < 3:
+        return {"spearman_r": None, "spearman_p": None, "pearson_r": None, "pearson_p": None, "n": len(pairs)}
+    a = np.array([p[0] for p in pairs])
+    b = np.array([p[1] for p in pairs])
+    if np.std(a) == 0 or np.std(b) == 0:
+        # scipy errors/NaNs on constant input (e.g. hit_rate all 1.0)
+        return {"spearman_r": None, "spearman_p": None, "pearson_r": None, "pearson_p": None, "n": len(pairs)}
+    sr, sp = scipy_stats.spearmanr(a, b)
+    pr, pp = scipy_stats.pearsonr(a, b)
+    return {
+        "spearman_r": float(sr), "spearman_p": float(sp),
+        "pearson_r": float(pr), "pearson_p": float(pp),
+        "n": len(pairs),
     }

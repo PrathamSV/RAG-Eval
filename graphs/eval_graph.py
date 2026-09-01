@@ -38,6 +38,7 @@ class EvalQueryState(TypedDict, total=False):
     reference_answer: Optional[str]
     use_reranker: bool
     rerank_top_n: int
+    top_k: int
     retrieved_nodes: List[NodeWithScore]
     retrieved_ids: List[str]
     latency_ms: float
@@ -47,25 +48,52 @@ class EvalQueryState(TypedDict, total=False):
     combined: dict
 
 
+_cached_index: VectorStoreIndex | None = None
+
+
 def _index() -> VectorStoreIndex:
-    configure_llamaindex_settings()
-    return VectorStoreIndex.from_vector_store(get_vector_store())
+    """Build the index once and cache it at module level -- retrieve() is
+    called once per query in run_eval()'s loop, and rebuilding
+    VectorStoreIndex from scratch each time reconstructs the embedding
+    model (HuggingFaceEmbedding), which reloads its weights off disk on
+    every call. Caching means the weights load once per process instead
+    of once per query."""
+    global _cached_index
+    if _cached_index is None:
+        configure_llamaindex_settings()
+        _cached_index = VectorStoreIndex.from_vector_store(get_vector_store())
+    return _cached_index
+
+
+_reranker_cache: dict[int, SentenceTransformerRerank] = {}
+
+
+def _get_reranker(top_n: int) -> SentenceTransformerRerank:
+    """Cache SentenceTransformerRerank instances by top_n -- constructing
+    one loads the cross-encoder weights from disk, and retrieve() runs
+    once per query in run_eval()'s loop, so building a fresh instance per
+    query reloads the weights every time (same issue as the embedding
+    model before it was cached in _index())."""
+    if top_n not in _reranker_cache:
+        _reranker_cache[top_n] = SentenceTransformerRerank(
+            model="cross-encoder/ms-marco-MiniLM-L-6-v2", top_n=top_n
+        )
+    return _reranker_cache[top_n]
 
 
 def retrieve(state: EvalQueryState) -> dict:
     qid = state["query_id"]
-    print(f"  [query {qid}] retrieving top-{RETRIEVE_TOP_K} chunks...", flush=True)
+    top_k = state.get("top_k", RETRIEVE_TOP_K)
+    print(f"  [query {qid}] retrieving top-{top_k} chunks...", flush=True)
     start = time.perf_counter()
     index = _index()
-    retriever = index.as_retriever(similarity_top_k=RETRIEVE_TOP_K)
+    retriever = index.as_retriever(similarity_top_k=top_k)
     nodes = retriever.retrieve(state["question"])
 
     if state.get("use_reranker"):
-        print(f"  [query {qid}] reranking to top-{state.get('rerank_top_n', 4)}...", flush=True)
-        reranker = SentenceTransformerRerank(
-            model="cross-encoder/ms-marco-MiniLM-L-6-v2",
-            top_n=state.get("rerank_top_n", 4),
-        )
+        rerank_top_n = state.get("rerank_top_n", 4)
+        print(f"  [query {qid}] reranking to top-{rerank_top_n}...", flush=True)
+        reranker = _get_reranker(rerank_top_n)
         nodes = reranker.postprocess_nodes(nodes, query_str=state["question"])
 
     latency_ms = (time.perf_counter() - start) * 1000
@@ -150,6 +178,13 @@ def get_eval_query_graph():
 def run_eval(use_reranker: bool = True, rerank_top_n: int = 4, top_k: int = RETRIEVE_TOP_K) -> int:
     """Load the eval set, run every query through the per-query graph, persist
     per-query results, and finalize the eval_runs row. Returns the run id."""
+    if use_reranker and rerank_top_n > top_k:
+        raise ValueError(
+            f"rerank_top_n ({rerank_top_n}) cannot exceed top_k ({top_k}) -- "
+            "the reranker only reorders/trims the top_k candidates already "
+            "retrieved, so asking it to keep more than that doesn't make sense."
+        )
+
     db.init_schema()
     queries = db.fetch_eval_queries()
     if not queries:
@@ -187,6 +222,7 @@ def run_eval(use_reranker: bool = True, rerank_top_n: int = 4, top_k: int = RETR
                         "reference_answer": q["reference_answer"],
                         "use_reranker": use_reranker,
                         "rerank_top_n": rerank_top_n,
+                        "top_k": top_k,
                     }
                 )
                 db.insert_eval_result(
@@ -198,9 +234,6 @@ def run_eval(use_reranker: bool = True, rerank_top_n: int = 4, top_k: int = RETR
                     generated_answer=result["answer"],
                 )
             except Exception as exc:
-                # Surface exactly which query broke and why before this
-                # propagates up and marks the whole run 'failed' below —
-                # otherwise a mid-run crash just looks like the process hung.
                 print(f"[{i}/{len(queries)}] FAILED on query {q['id']}: {exc!r}", flush=True)
                 raise
             print(f"[{i}/{len(queries)}] ok — persisted", flush=True)

@@ -194,3 +194,20 @@ def insert_feedback(
                    VALUES (%s, %s, %s, %s)""",
                 (query_text, answer_text, rating, retrieved_chunk_ids),
             )
+
+
+def fetch_run_metrics_by_query(run_id: int) -> dict:
+    """Returns {query_id: {metric_name: value, ...}} for a run. Two uses:
+    aligning two runs by query_id for paired significance testing (they
+    share the same eval_queries), and pulling every metric for one run to
+    correlate retrieval metrics against generation metrics."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """SELECT query_id, hit_rate, recall, precision, mrr, latency_ms,
+                          faithfulness, answer_relevance, answer_correctness
+                   FROM eval_results WHERE run_id = %s""",
+                (run_id,),
+            )
+            rows = cur.fetchall()
+    return {row["query_id"]: dict(row) for row in rows}

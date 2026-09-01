@@ -41,10 +41,26 @@ class ServingState(TypedDict, total=False):
     citations: List[dict]
 
 
-def _build_index() -> VectorStoreIndex:
-    configure_llamaindex_settings()
-    return VectorStoreIndex.from_vector_store(get_vector_store())
+_cached_index: VectorStoreIndex | None = None
 
+
+def _build_index() -> VectorStoreIndex:
+    global _cached_index
+    if _cached_index is None:
+        configure_llamaindex_settings()
+        _cached_index = VectorStoreIndex.from_vector_store(get_vector_store())
+    return _cached_index
+
+
+_reranker_cache: dict[int, SentenceTransformerRerank] = {}
+
+
+def _get_reranker(top_n: int) -> SentenceTransformerRerank:
+    if top_n not in _reranker_cache:
+        _reranker_cache[top_n] = SentenceTransformerRerank(
+            model="cross-encoder/ms-marco-MiniLM-L-6-v2", top_n=top_n
+        )
+    return _reranker_cache[top_n]
 
 def rewrite_query(state: ServingState) -> dict:
     """First pass: use the question as-is. On a retry (context judged
@@ -80,9 +96,7 @@ def retrieve(state: ServingState) -> dict:
 def rerank(state: ServingState) -> dict:
     rid = state["request_id"]
     print(f"[{rid}] reranking to top-{RERANK_TOP_N}...", flush=True)
-    reranker = SentenceTransformerRerank(
-        model="cross-encoder/ms-marco-MiniLM-L-6-v2", top_n=RERANK_TOP_N
-    )
+    reranker = _get_reranker(RERANK_TOP_N)
     reranked = reranker.postprocess_nodes(
         state["retrieved_nodes"], query_str=state["rewritten_question"]
     )
