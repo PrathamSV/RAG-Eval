@@ -23,9 +23,7 @@ from pathlib import Path
 from typing import List, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
-from llama_index.core import VectorStoreIndex
 from llama_index.core.llms import ChatMessage
-from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.core.schema import NodeWithScore
 
 import db
@@ -118,7 +116,6 @@ def retrieve(state: EvalQueryState) -> dict:
     top_k = state.get("top_k", RETRIEVE_TOP_K)
     print(f"  [query {qid}] hybrid retrieval (dense + sparse, fused) top-{top_k}...", flush=True)
     index = get_cached_index()
-    hybrid_nodes = hybrid_retrieve(state["question"], index, dense_top_k=top_k, sparse_top_k=top_k)
     hybrid_nodes = hybrid_retrieve(state["question"], index, dense_top_k=top_k, sparse_top_k=top_k)
     exact_ids = {n.node.node_id for n in exact_nodes}
     hybrid_nodes = [n for n in hybrid_nodes if n.node.node_id not in exact_ids]
@@ -338,7 +335,7 @@ def run_eval(
                         "reference_answer": q["reference_answer"],
                         "generated_answer": result["answer"],
                         "retrieval_path": result.get("retrieval_path"),
-                        "detected_code": result.get("detected_code"),
+                        "detected_code": result.get("detected_codes"),
                         "gold_chunk_ids": q["gold_chunk_ids"],
                         "retrieved_chunk_ids": result["retrieved_ids"],
                         "latency_ms": result["latency_ms"],

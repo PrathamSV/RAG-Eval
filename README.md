@@ -3,9 +3,10 @@
 A full RAG stack: LlamaIndex handles chunking/embedding/retrieval, Postgres +
 pgvector stores the vectors *and* the eval tables, LangGraph orchestrates two
 distinct workflows (a corrective-RAG serving graph and a fan-out/fan-in eval
-graph), and FastAPI is the service boundary over all of it. Gemini (free
-tier, via Google AI Studio) provides the embedding model, and Anthropic for both the
-generation and judge LLMs.
+graph), and FastAPI is the service boundary over all of it. A local
+HuggingFace model (`BAAI/bge-small-en-v1.5`, CPU-only) provides the
+embeddings, and Anthropic's Claude models handle both generation and
+LLM-judge duties.
 
 ## Quick start
 
@@ -16,7 +17,7 @@ pip install -r requirements.txt
 docker compose up -d
 psql -h localhost -U postgres -d ragdb -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
-cp .env.example .env   # then add your GOOGLE_API_KEY (free from https://aistudio.google.com/apikey)
+cp .env.example .env   # then add your ANTHROPIC_API_KEY
 
 python ingest.py                          # loads ./data into pgvector
 python query.py                           # phase-1 sanity check: ask a question, get a grounded answer + sources
@@ -46,9 +47,6 @@ from just one of the two passages, which would silently defeat the point.
 `--multi-hop-fraction` controls single- vs multi-hop mix; `--semantic-fraction`
 controls adjacent vs semantic mix within the multi-hop share.
 
-```
-GET /eval/compare?run_a=<no-reranker-run-id>&run_b=<reranker-run-id>
-```
 
 ## Architecture
 
@@ -61,19 +59,17 @@ GET /eval/compare?run_a=<no-reranker-run-id>&run_b=<reranker-run-id>
 
 ### Data model (Postgres)
 
-- `data_rag_chunks` — created automatically by LlamaIndex's `PGVectorStore`; holds chunk text, `embedding vector(768)`, and metadata (including `node_id`, which every other table references as its "chunk id").
+- `data_rag_chunks` — created automatically by LlamaIndex's `PGVectorStore`; holds chunk text, `embedding vector(384)` (bge-small-en-v1.5), and metadata (including `node_id`, which every other table references as its "chunk id").
 - `eval_queries` — query text, `gold_chunk_ids text[]` (node_ids from `data_rag_chunks`), optional `reference_answer`, `query_type` (single-hop / multi-hop).
 - `eval_runs` — run id, timestamps, `config` snapshot (embedding model, reranker on/off, top_k) — what makes before/after comparisons possible.
 - `eval_results` — per-query, per-run scores for every metric (`hit_rate`, `recall`, `precision`, `mrr`, `faithfulness`, `answer_relevance`, `answer_correctness`, `latency_ms`).
 - `feedback` — thumbs up/down from production traffic, for online eval.
 
-### Serving graph (`graphs/serving_graph.py`) [WIP]
+### Serving graph (`graphs/serving_graph.py`) 
 
-```
 rewrite_query → retrieve → rerank → check_sufficiency
-   ├─(context weak, attempts left)→ rewrite_query   (loop)
-   └─(sufficient, or out of attempts)→ generate → faithfulness_check → END
-```
+├─(context weak, attempts left)→ rewrite_query (loop)
+└─(sufficient, or out of attempts)→ generate → faithfulness_check → END
 
 The conditional edge is genuine corrective RAG: if the reranked top score is
 below `SUFFICIENCY_THRESHOLD`, the question gets rewritten and retried
@@ -81,14 +77,12 @@ below `SUFFICIENCY_THRESHOLD`, the question gets rewritten and retried
 called. Every response includes citations (node id, score, snippet) and a
 self-reported faithfulness score.
 
-### Eval graph (`graphs/eval_graph.py`) [WIP]
+### Eval graph (`graphs/eval_graph.py`)
 
 Per query:
-
-```
 retrieve ─┬→ compute_retrieval_metrics ─┐
-          └→ generate → compute_generation_metrics ─┴→ combine → END
-```
+└→ generate → compute_generation_metrics ─┴→ combine → END
+
 
 Retrieval metrics (Hit Rate@K, Recall@K, Precision@K, MRR — pure
 list-comparison, no LLM call) run off `retrieve` in parallel with generation

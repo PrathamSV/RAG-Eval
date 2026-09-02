@@ -1,4 +1,4 @@
 - ~~Enhance the Q-A generator to have multiple relevant chunks for a question. This actually gives some use to the retrieval metrics that are being calculated.~~ Done — `eval/generate_testset.py` now generates a mix of single-hop and multi-hop questions, with a verification pass that discards multi-hop candidates actually answerable from one passage alone.
-- Look at file metadata? Prioritize more recent files and /or have a trustworthiness metric in metadata to prioritze information when it is conflicting
-- Make the program work for logs, otherdatabases etc. rather than just plain text
-- ~~Run embedding model locally. Free gemini embedding is heavily rate-limited.~~
+- ~~    Run embedding model locally. Free gemini embedding is heavily rate-limited.~~
+- ~~add regex matching and hybrid search as fall back to correctly match error codes.~~
+- context expansion when multiple child chunks from same parent are referenced. Pull in entire parent chunk

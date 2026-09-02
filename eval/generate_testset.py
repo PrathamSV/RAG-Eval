@@ -141,7 +141,7 @@ Respond with ONLY a JSON object:
 # answer a question about a near-identical chunk) and sample the pairing
 # partner from a window a bit further out instead.
 SEMANTIC_PAIR_RANK_SKIP = 2    # 0-indexed offset: skip ranks 1-2 (closest matches)
-SEMANTIC_PAIR_RANK_WINDOW = 4  # then sample from the next 6 (ranks 3-8)
+SEMANTIC_PAIR_RANK_WINDOW = 4  # then sample from the next 4 (ranks 3-6)
 
 
 def fetch_all_chunks() -> list:
@@ -249,7 +249,20 @@ def verify_multi_hop(question: str, chunk_a_text: str, chunk_b_text: str, llm: A
 def _generate_and_store_multi_hop(
     chunk_a: dict, chunk_b: dict, llm: Anthropic, i: int, total: int, max_attempts: int = 2
 ) -> int:
-    """... (docstring unchanged) ..."""
+    """Generate a multi-hop question over (chunk_a, chunk_b), verify it
+    genuinely requires both passages, and store it if it passes.
+
+    Tries up to `max_attempts` times: each rejected candidate feeds its
+    question + rejection reason back into MULTI_HOP_RETRY_PROMPT so the next
+    attempt picks a different, more independent pair of details rather than
+    repeating the same mistake. Gives up on this chunk pair (returns 0)
+    after `max_attempts` rejections, or on any generation/verification
+    failure (missing/unparseable JSON) — a candidate is only ever discarded,
+    never silently kept on a shaky verdict.
+
+    Returns 1 if a verified multi-hop query was inserted into eval_queries,
+    else 0.
+    """
     previous_question = None
     previous_reason = None
 

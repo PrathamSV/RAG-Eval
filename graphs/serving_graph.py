@@ -38,12 +38,17 @@ import uuid
 from typing import List, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
-from llama_index.core import VectorStoreIndex
 from llama_index.core.llms import ChatMessage
-from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.core.schema import NodeWithScore
 
-from common import GENERATE_PROMPT, build_numbered_context, get_cached_index, get_llm, get_reranker
+from common import (
+    GENERATE_PROMPT,
+    build_numbered_context,
+    fetch_nodes_by_error_code,
+    get_cached_index,
+    get_llm,
+    get_reranker,
+)
 from hybrid_retrieval import hybrid_retrieve
 from parsers import normalize_error_codes
 
@@ -164,7 +169,7 @@ def rerank(state: ServingState) -> dict:
 
     reranked_rest: List[NodeWithScore] = []
     if to_rerank and remaining_budget:
-        reranker = get_reranker(remaining_budget)          # <-- this line
+        reranker = get_reranker(remaining_budget)
         reranked_rest = reranker.postprocess_nodes(to_rerank, query_str=state["rewritten_question"])
 
     reranked = exact_nodes + reranked_rest

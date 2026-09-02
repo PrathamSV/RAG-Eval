@@ -6,10 +6,10 @@ from here so the embedding model / dimension can never drift between
 ingestion and querying (which would silently break retrieval).
 
 Generation + judge run on Anthropic's Claude models. Anthropic does not
-offer an embeddings API, so embeddings stay on Gemini
-(`gemini-embedding-001`) — the two providers are independent and mixing
-them is fine, since embeddings and generation never need to be the same
-model/vendor.
+offer an embeddings API, so embeddings run locally via HuggingFace
+(`BAAI/bge-small-en-v1.5`, CPU-only — see EMBEDDING_MODEL below). This also
+sidesteps the rate-limit fragility of a cloud embeddings API (e.g. Gemini's
+free tier), at the cost of a smaller embedding dimension (384 vs 768).
 """
 
 import json
