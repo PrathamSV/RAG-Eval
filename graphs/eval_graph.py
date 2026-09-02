@@ -2,7 +2,8 @@
 Eval graph (offline, hit on POST /eval/run):
 
   load eval set
-    -> for each query: retrieve
+    -> for each query: retrieve (exact error-code match first, vector
+       search as fallback -- see retrieve() below)
       -> [branch] compute retrieval metrics IN PARALLEL WITH run generation -> compute generation metrics
       -> [join] combine
     -> persist to eval_runs / eval_results
@@ -15,7 +16,10 @@ LangGraph branch — `compute_retrieval_metrics` and `generate` both read off
 over every row in eval_queries and persists as it goes.
 """
 
+import json
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -25,10 +29,22 @@ from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.core.schema import NodeWithScore
 
 import db
-from common import GENERATION_MODEL, configure_llamaindex_settings, get_llm, get_vector_store
+from common import (
+    GENERATION_MODEL,
+    configure_llamaindex_settings,
+    fetch_nodes_by_error_code,
+    get_llm,
+    get_vector_store,
+)
 from eval.metrics import generation_metrics, retrieval_metrics
+from parsers import normalize_error_code
 
 RETRIEVE_TOP_K = 10
+
+# Where per-query export files land when save_details=True and no explicit
+# output_path is given. Kept out of the repo tables entirely -- this is a
+# side file for manual eyeballing, not something downstream code reads.
+DEFAULT_EXPORT_DIR = Path("./eval_exports")
 
 
 class EvalQueryState(TypedDict, total=False):
@@ -39,6 +55,8 @@ class EvalQueryState(TypedDict, total=False):
     use_reranker: bool
     rerank_top_n: int
     top_k: int
+    detected_code: Optional[str]
+    retrieval_path: str  # "exact_match" | "vector"
     retrieved_nodes: List[NodeWithScore]
     retrieved_ids: List[str]
     latency_ms: float
@@ -82,10 +100,43 @@ def _get_reranker(top_n: int) -> SentenceTransformerRerank:
 
 
 def retrieve(state: EvalQueryState) -> dict:
+    """Exact error-code match first (deterministic metadata lookup,
+    bypassing both vector search and the reranker -- see
+    fetch_nodes_by_error_code's docstring for why embeddings are
+    unreliable on opaque alphanumeric codes specifically). Only falls
+    through to normal vector retrieval when no code is detected, or the
+    detected code is well-formed but not actually in the ingested catalog.
+    """
     qid = state["query_id"]
+    start = time.perf_counter()
+
+    code = normalize_error_code(state["question"])
+    if code:
+        print(f"  [query {qid}] detected error code {code} -- exact-match lookup", flush=True)
+        nodes = fetch_nodes_by_error_code(code)
+        if nodes:
+            latency_ms = (time.perf_counter() - start) * 1000
+            ids = [n.node.node_id for n in nodes]
+            print(
+                f"  [query {qid}] exact-match lookup found {len(ids)} chunk(s) for {code} "
+                f"in {latency_ms:.0f}ms",
+                flush=True,
+            )
+            return {
+                "retrieved_nodes": nodes,
+                "retrieved_ids": ids,
+                "latency_ms": latency_ms,
+                "detected_code": code,
+                "retrieval_path": "exact_match",
+            }
+        print(
+            f"  [query {qid}] '{code}' is code-shaped but matched no chunks in the catalog "
+            f"-- falling back to vector search",
+            flush=True,
+        )
+
     top_k = state.get("top_k", RETRIEVE_TOP_K)
     print(f"  [query {qid}] retrieving top-{top_k} chunks...", flush=True)
-    start = time.perf_counter()
     index = _index()
     retriever = index.as_retriever(similarity_top_k=top_k)
     nodes = retriever.retrieve(state["question"])
@@ -99,7 +150,13 @@ def retrieve(state: EvalQueryState) -> dict:
     latency_ms = (time.perf_counter() - start) * 1000
     ids = [n.node.node_id for n in nodes]
     print(f"  [query {qid}] retrieved {len(ids)} chunk(s) in {latency_ms:.0f}ms", flush=True)
-    return {"retrieved_nodes": nodes, "retrieved_ids": ids, "latency_ms": latency_ms}
+    return {
+        "retrieved_nodes": nodes,
+        "retrieved_ids": ids,
+        "latency_ms": latency_ms,
+        "detected_code": code,
+        "retrieval_path": "vector",
+    }
 
 
 def compute_retrieval_metrics(state: EvalQueryState) -> dict:
@@ -175,9 +232,50 @@ def get_eval_query_graph():
     return _eval_query_graph
 
 
-def run_eval(use_reranker: bool = True, rerank_top_n: int = 4, top_k: int = RETRIEVE_TOP_K) -> int:
+def _default_export_path(run_id: int) -> Path:
+    """`./eval_exports/eval_run_<id>_<timestamp>.json` -- timestamped so
+    re-running the same run_id (or running eval repeatedly while iterating)
+    never silently clobbers a previous export."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return DEFAULT_EXPORT_DIR / f"eval_run_{run_id}_{stamp}.json"
+
+
+def _write_details_file(
+    output_path: Path, run_id: int, config: dict, records: List[dict]
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "run_id": run_id,
+        "config": config,
+        "n_queries": len(records),
+        "queries": records,
+    }
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+
+
+def run_eval(
+    use_reranker: bool = True,
+    rerank_top_n: int = 4,
+    top_k: int = RETRIEVE_TOP_K,
+    save_details: bool = False,
+    output_path: Optional[str] = None,
+) -> dict:
     """Load the eval set, run every query through the per-query graph, persist
-    per-query results, and finalize the eval_runs row. Returns the run id."""
+    per-query results, and finalize the eval_runs row. Returns
+    {"run_id": ..., "details_path": <str or None>}.
+
+    save_details: if True, also writes a JSON file with, per query, the
+        question, reference (gold) answer, generated answer, gold/retrieved
+        chunk ids, which retrieval path served it (exact_match vs vector),
+        and every metric (hit_rate/recall/precision/mrr/latency_ms/
+        faithfulness/answer_relevance/answer_correctness) -- meant purely
+        for manual inspection alongside the DB-backed run, not read back by
+        any other code path.
+    output_path: where to write that file. Defaults to
+        `./eval_exports/eval_run_<id>_<timestamp>.json` if omitted. Ignored
+        if save_details is False.
+    """
     if use_reranker and rerank_top_n > top_k:
         raise ValueError(
             f"rerank_top_n ({rerank_top_n}) cannot exceed top_k ({top_k}) -- "
@@ -206,6 +304,11 @@ def run_eval(use_reranker: bool = True, rerank_top_n: int = 4, top_k: int = RETR
         f"(reranker={'on' if use_reranker else 'off'}, top_k={top_k})...",
         flush=True,
     )
+
+    # Only accumulated in memory when save_details is on -- an eval run can
+    # be large, so there's no reason to hold every question/answer/context
+    # for the lifetime of the run if nobody asked for the export.
+    detail_records: List[dict] = [] if save_details else None
 
     try:
         for i, q in enumerate(queries, start=1):
@@ -237,6 +340,24 @@ def run_eval(use_reranker: bool = True, rerank_top_n: int = 4, top_k: int = RETR
                 print(f"[{i}/{len(queries)}] FAILED on query {q['id']}: {exc!r}", flush=True)
                 raise
             print(f"[{i}/{len(queries)}] ok — persisted", flush=True)
+
+            if save_details:
+                detail_records.append(
+                    {
+                        "query_id": q["id"],
+                        "query_type": q["query_type"],
+                        "question": q["query_text"],
+                        "reference_answer": q["reference_answer"],
+                        "generated_answer": result["answer"],
+                        "retrieval_path": result.get("retrieval_path"),
+                        "detected_code": result.get("detected_code"),
+                        "gold_chunk_ids": q["gold_chunk_ids"],
+                        "retrieved_chunk_ids": result["retrieved_ids"],
+                        "latency_ms": result["latency_ms"],
+                        "metrics": result["combined"],
+                    }
+                )
+
         db.finish_eval_run(run_id, status="complete")
         print(f"Eval run {run_id} complete — {len(queries)} quer"
               f"{'y' if len(queries) == 1 else 'ies'} evaluated.", flush=True)
@@ -245,4 +366,11 @@ def run_eval(use_reranker: bool = True, rerank_top_n: int = 4, top_k: int = RETR
         print(f"Eval run {run_id} marked failed.", flush=True)
         raise
 
-    return run_id
+    details_path = None
+    if save_details:
+        path = Path(output_path) if output_path else _default_export_path(run_id)
+        _write_details_file(path, run_id, config, detail_records)
+        details_path = str(path)
+        print(f"Eval run {run_id} details written to {details_path}", flush=True)
+
+    return {"run_id": run_id, "details_path": details_path}

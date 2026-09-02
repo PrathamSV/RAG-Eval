@@ -1,0 +1,456 @@
+{
+  "run_id": 4,
+  "config": {
+    "embedding_model": "gemini-embedding-001",
+    "generation_model": "claude-haiku-4-5-20251001",
+    "use_reranker": true,
+    "rerank_top_n": 3,
+    "top_k": 10
+  },
+  "n_queries": 17,
+  "queries": [
+    {
+      "query_id": 27,
+      "query_type": "single-hop",
+      "question": "What is the status of the CPLE0018 copy metadata migration and what action is required?",
+      "reference_answer": "The CPLE0018 copy metadata migration is completed successfully with copies migrated from the old data model to the new data model. No action is needed.",
+      "generated_answer": "assistant: Based on the context provided:\n\n**Status:** The CPLE0018 copy metadata migration is completed successfully. The copies were migrated successfully from the old data model to the new data model.\n\n**Action Required:** No action needed. This is an informational compliance message.",
+      "retrieval_path": "exact_match",
+      "detected_code": "CPLE0018",
+      "gold_chunk_ids": [
+        "0916fefc-9d5a-4814-a01d-66f18f4175e3"
+      ],
+      "retrieved_chunk_ids": [
+        "0916fefc-9d5a-4814-a01d-66f18f4175e3"
+      ],
+      "latency_ms": 28.291700000409037,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.95
+      }
+    },
+    {
+      "query_id": 28,
+      "query_type": "single-hop",
+      "question": "What are the three troubleshooting steps recommended to resolve error ASSD0006 when a local snapshot operation fails due to a PowerStore connection timeout?",
+      "reference_answer": "The three troubleshooting steps are: 1) Check the network connectivity between PowerProtect Data Manager and the PowerStore system, 2) Confirm that there is no packet loss between PowerProtect Data Manager and the PowerStore system, and 3) Make sure that the PowerStore system is running.",
+      "generated_answer": "assistant: According to the context, the three troubleshooting steps recommended to resolve error ASSD0006 are:\n\n1. Check the network connectivity between PowerProtect Data Manager and the PowerStore system.\n2. Confirm that there is no packet loss between PowerProtect Data Manager and the PowerStore system.\n3. Make sure that the PowerStore system is running.\n\nIf the issue persists after these steps, the context recommends contacting Dell Customer Support.",
+      "retrieval_path": "exact_match",
+      "detected_code": "ASSD0006",
+      "gold_chunk_ids": [
+        "2852334b-1ece-41f3-b4f9-4b5d3aa6f6d6"
+      ],
+      "retrieved_chunk_ids": [
+        "2852334b-1ece-41f3-b4f9-4b5d3aa6f6d6"
+      ],
+      "latency_ms": 27.33730000909418,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 1.0
+      }
+    },
+    {
+      "query_id": 29,
+      "query_type": "single-hop",
+      "question": "What action must be taken if PowerProtect Data Manager is unable to automatically increase memory and CPU during Server DR?",
+      "reference_answer": "You need to manually adjust the memory size and CPU count for the PowerProtect Data Manager virtual machine to the desired size to avoid impacts to system performance.",
+      "generated_answer": "assistant: According to the context, if PowerProtect Data Manager is unable to automatically increase memory and CPU during Server DR, you must **manually increase the memory size and CPU count for the PowerProtect Data Manager virtual machine** to the desired size to avoid impacts to system performance.",
+      "retrieval_path": "vector",
+      "detected_code": null,
+      "gold_chunk_ids": [
+        "be4ace22-4985-4eff-864d-03f30ac14786"
+      ],
+      "retrieved_chunk_ids": [
+        "be4ace22-4985-4eff-864d-03f30ac14786",
+        "ce2821f3-9722-420f-9a1d-d60ae6c5413f",
+        "64bf8bd2-092e-45bf-92ef-c5674cb66edb"
+      ],
+      "latency_ms": 16695.008199982112,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 1.0
+      }
+    },
+    {
+      "query_id": 30,
+      "query_type": "single-hop",
+      "question": "Where should a user look to find more information about SCSI device detachment errors during asset cleanup operations?",
+      "reference_answer": "The log files at /var/log/brs/sdmng/sdmng.log contain more information about the error.",
+      "generated_answer": "assistant: According to the context, a user should review the log files at **/var/log/brs/sdmng/sdmng.log** for more information about SCSI device detachment errors during asset cleanup operations.",
+      "retrieval_path": "vector",
+      "detected_code": null,
+      "gold_chunk_ids": [
+        "ac5de597-a846-436a-b662-2989bfd5f587"
+      ],
+      "retrieved_chunk_ids": [
+        "ac5de597-a846-436a-b662-2989bfd5f587",
+        "4d869a11-fd40-47ce-a28f-39381e4d9ca7",
+        "7d6e2082-3959-4add-80b4-88098b48b3c5"
+      ],
+      "latency_ms": 529.8350999946706,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 1.0
+      }
+    },
+    {
+      "query_id": 31,
+      "query_type": "single-hop",
+      "question": "According to error AMGHV0009, what is one reason why mounting of an asset cannot be completed?",
+      "reference_answer": "A valid host cannot be located, which may be because the Hyper-V agent is not installed on the host or on the current owner node of the VM asset in a clustered environment.",
+      "generated_answer": "assistant: According to error AMGHV0009, one reason why mounting of an asset cannot be completed is that **a valid host cannot be located**.",
+      "retrieval_path": "exact_match",
+      "detected_code": "AMGHV0009",
+      "gold_chunk_ids": [
+        "e6082192-aaf4-471a-ab26-183707bf8c3a"
+      ],
+      "retrieved_chunk_ids": [
+        "e6082192-aaf4-471a-ab26-183707bf8c3a"
+      ],
+      "latency_ms": 20.575400005327538,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.8
+      }
+    },
+    {
+      "query_id": 32,
+      "query_type": "multi-hop",
+      "question": "Given that ABNA0019 indicates an API error prevents slice list creation, what does ABNA0031's specification that missing asset protocol or export path details cause the mount attributes to be undetectable suggest about the nature of that API error?",
+      "reference_answer": "The API error in ABNA0019 likely involves the system's inability to retrieve or validate the asset's protocol and export path information, which are prerequisites for detecting mount attributes as described in ABNA0031. The API error is a symptom of the underlying missing configuration details rather than a separate technical failure.",
+      "generated_answer": "assistant: I cannot answer this question based on the provided context. The context only contains information about error code ABNA0019 and does not include any information about ABNA0031 or its specifications regarding missing asset protocol or export path details. Therefore, I cannot make the comparison or inference you're asking about.",
+      "retrieval_path": "exact_match",
+      "detected_code": "ABNA0019",
+      "gold_chunk_ids": [
+        "ad6d3594-c1f4-4c7a-b65d-7e41663ecc18",
+        "83f007cc-e5d5-458a-9a2d-c9338c2bd1ab"
+      ],
+      "retrieved_chunk_ids": [
+        "ad6d3594-c1f4-4c7a-b65d-7e41663ecc18"
+      ],
+      "latency_ms": 30.21730002365075,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 33,
+      "query_type": "multi-hop",
+      "question": "Why would an asset added to a volume group cause ASSD0017 to occur during local snapshot operations but ABSD0024 to occur during backup operations instead?",
+      "reference_answer": "Both error codes are triggered by the same root cause (asset added to a volume group making it non-protectable as a stand-alone volume), but they are distinct error codes because they represent different types of protection operations failing—ASSD0017 specifically indicates a local snapshot operation failure, while ABSD0024 specifically indicates a backup operation failure. The different operation types (local snapshot vs. backup) result in different error codes being generated.",
+      "generated_answer": "assistant: The context doesn't contain information about ABSD0024 or any explanation for why different error codes would occur during local snapshot operations versus backup operations when an asset is added to a volume group.\n\nThe context only explains ASSD0017, which occurs during local snapshot operations when an asset is added to a volume group and is no longer protectable as a stand-alone volume.",
+      "retrieval_path": "exact_match",
+      "detected_code": "ASSD0017",
+      "gold_chunk_ids": [
+        "b988ce07-f5f0-43ec-83d0-75f0bd84fd83",
+        "2e5637fc-0652-476f-a876-757f068c758d"
+      ],
+      "retrieved_chunk_ids": [
+        "b988ce07-f5f0-43ec-83d0-75f0bd84fd83"
+      ],
+      "latency_ms": 33.000499999616295,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.0,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 34,
+      "query_type": "multi-hop",
+      "question": "If a user account is updated (ADT0103) immediately after a successful login (ADT0108), what might this suggest about the relationship between these two audit events in a security context?",
+      "reference_answer": "The different event codes (ADT0108 for login vs ADT0103 for user update) indicate these are distinct audit events tracking different types of actions. A successful login followed by a user update could suggest either legitimate administrative changes made during that session, or potentially unauthorized modifications if the login was compromised. The specific event codes allow security teams to correlate and investigate the sequence of these distinct actions.",
+      "generated_answer": "assistant: The context doesn't contain information about the relationship between ADT0103 and ADT0108 audit events, or what a sequence of these events might suggest in a security context. The provided context only describes ADT0103 as a user account update event that is informational in nature and requires no action.",
+      "retrieval_path": "exact_match",
+      "detected_code": "ADT0103",
+      "gold_chunk_ids": [
+        "8fcdf5d7-fb93-4d59-b2d4-ce72218e045d",
+        "2c0c84a3-6a44-4b82-ad50-d853a1890dcd"
+      ],
+      "retrieved_chunk_ids": [
+        "2c0c84a3-6a44-4b82-ad50-d853a1890dcd"
+      ],
+      "latency_ms": 22.989600023720413,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.8,
+        "answer_correctness": 0.85
+      }
+    },
+    {
+      "query_id": 35,
+      "query_type": "multi-hop",
+      "question": "Why does the system use different alert codes (ADT0122 versus ADT1001) to distinguish between the deletion of access provisions and the deletion of credentials?",
+      "reference_answer": "The system uses different alert codes to categorize different types of security events: ADT0122 specifically identifies when access provisions are removed from a user account, while ADT1001 specifically identifies when credentials themselves are deleted from the system. This distinction allows security teams to differentiate between access revocation events and credential removal events in their audit logs.",
+      "generated_answer": "assistant: The context doesn't contain information about why the system uses different alert codes to distinguish between the deletion of access provisions and the deletion of credentials. The context only shows an example of the ADT0122 alert code related to access provision deletion, but doesn't explain the reasoning behind using different codes or mention ADT1001.",
+      "retrieval_path": "exact_match",
+      "detected_code": "ADT0122",
+      "gold_chunk_ids": [
+        "6bd5468a-e145-4f1c-872d-90f68289aa78",
+        "b23faa34-7bcf-43a9-b757-e1d64d5a4b54"
+      ],
+      "retrieved_chunk_ids": [
+        "6bd5468a-e145-4f1c-872d-90f68289aa78"
+      ],
+      "latency_ms": 17.877600010251626,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.0,
+        "answer_correctness": 0.8
+      }
+    },
+    {
+      "query_id": 36,
+      "query_type": "multi-hop",
+      "question": "What is the relationship between the SMTP server update in IAMADT3041 and the user account update in IAMADT3006 — did the user's update trigger or necessitate the SMTP server change, or vice versa?",
+      "reference_answer": "The passages do not explicitly state a causal relationship, but both events involve the same user (<arg1>) and occurred within the same informational security context, suggesting the user update may have prompted the SMTP server reconfiguration for security or access purposes.",
+      "generated_answer": "assistant: The context provided does not contain information about IAMADT3006 or any relationship between the SMTP server update in IAMADT3041 and a user account update in IAMADT3006. Therefore, I cannot answer this question based on the given context.",
+      "retrieval_path": "exact_match",
+      "detected_code": "IAMADT3041",
+      "gold_chunk_ids": [
+        "e746ecc4-1cd3-4662-b5a6-734304b6d41f",
+        "74072500-eb2e-496e-a66b-f5041ee0382b"
+      ],
+      "retrieved_chunk_ids": [
+        "e746ecc4-1cd3-4662-b5a6-734304b6d41f"
+      ],
+      "latency_ms": 34.76839998620562,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 37,
+      "query_type": "multi-hop",
+      "question": "Given that GHVDM service restarts can prevent session creation in Passage A, how might an ongoing VM migration mentioned in Passage B similarly disrupt Hyper-V operations, and what is the relationship between these two types of service interruptions?",
+      "reference_answer": "Both the GHVDM service restart and ongoing VM migrations represent service-level interruptions that can prevent completion of Hyper-V operations—the former specifically blocking session creation and the latter blocking checkpoint creation. Both require waiting for the service/process to complete or stabilize before retrying the operation, suggesting they are analogous types of transient failures caused by competing or interrupted service processes.",
+      "generated_answer": "assistant: The context does not contain information about the relationship between GHVDM service restarts and VM migrations, or how these two types of service interruptions relate to each other.\n\nThe context only states that:\n- GHVDM service restarts can prevent session creation (ARSGHV0002)\n- Ongoing VM migrations can prevent checkpoint operations (ABHV0003)\n\nHowever, the context does not explain how these disruptions are related or provide a comparative analysis of their mechanisms or effects on Hyper-V operations.",
+      "retrieval_path": "vector",
+      "detected_code": null,
+      "gold_chunk_ids": [
+        "4f14e921-27a6-4577-8698-f8398814ac98",
+        "b0d20e72-693e-4835-b7d0-2a4ccb73983e"
+      ],
+      "retrieved_chunk_ids": [
+        "4f14e921-27a6-4577-8698-f8398814ac98",
+        "b0d20e72-693e-4835-b7d0-2a4ccb73983e",
+        "ac6fe5f8-be8e-43a7-92ee-2247f51191ad"
+      ],
+      "latency_ms": 297.03129999688827,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.6666666666666666,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.9
+      }
+    },
+    {
+      "query_id": 38,
+      "query_type": "multi-hop",
+      "question": "If a Meditech Universe backup fails with ABSD0031 due to network connectivity issues preventing volume retrieval from the Unisphere server, why would the troubleshooting step in ABSD0026 to verify that all volume groups are added to the asset group be impossible to complete at that moment?",
+      "reference_answer": "Because ABSD0031 indicates that volumes cannot be obtained from the storage group due to network connectivity failure, it would be impossible to verify whether all required Meditech Universe volumes have been added to the asset group (as ABSD0026 requires) until the network connectivity is restored and volume retrieval succeeds. The network failure prevents the visibility needed to perform the ABSD0026 troubleshooting step.",
+      "generated_answer": "assistant: I cannot answer this question based on the provided context. The context only contains information about error code ABSD0031 and its troubleshooting steps. It does not contain any information about error code ABSD0026, its troubleshooting steps, or why any of its steps would be impossible to complete due to network connectivity issues.\n\nTo answer your question, I would need context that includes details about ABSD0026 and how it relates to ABSD0031.",
+      "retrieval_path": "exact_match",
+      "detected_code": "ABSD0031",
+      "gold_chunk_ids": [
+        "1fc212e3-156c-4597-a34a-7b7ef58bbc19",
+        "b3a9328b-47a9-4341-9074-29542d2911a4"
+      ],
+      "retrieved_chunk_ids": [
+        "b3a9328b-47a9-4341-9074-29542d2911a4"
+      ],
+      "latency_ms": 32.96979999868199,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 39,
+      "query_type": "multi-hop",
+      "question": "How does a change in backup type retention to a target (ADT0229) differ in scope from a change in operation type schedule (ADT0209), and why might these require different alert codes?",
+      "reference_answer": "ADT0229 specifically tracks retention policy changes for backup data being sent to a target destination, whereas ADT0209 tracks timing/scheduling changes for operations themselves. These are distinct types of protection policy modifications—one affecting data lifecycle management and the other affecting when operations execute—which justifies their separate alert identifiers.",
+      "generated_answer": "assistant: The context provided does not contain information about ADT0209 or details about operation type schedules. Therefore, I cannot answer this question using only the context given.\n\nThe context only describes ADT0229 as an informational alert about a change in backup type retention to a target, but it does not include comparative information about other alert codes or their differences in scope.",
+      "retrieval_path": "exact_match",
+      "detected_code": "ADT0229",
+      "gold_chunk_ids": [
+        "091e2a09-e02a-453d-a3d9-bfb1fc5bfb8f",
+        "36e4d5f2-81c4-4c41-bcc9-bfc256edc039"
+      ],
+      "retrieved_chunk_ids": [
+        "091e2a09-e02a-453d-a3d9-bfb1fc5bfb8f"
+      ],
+      "latency_ms": 25.909299991326407,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 40,
+      "query_type": "multi-hop",
+      "question": "How do the blocking conditions described in ARSD0025 and ARSD0029 differ in terms of what type of operation prevents a restore from proceeding?",
+      "reference_answer": "ARSD0025 indicates that an Instant Access session (a different type of operation) running on PowerStore blocks the restore, whereas ARSD0029 indicates that another restore operation using the identical backup is what prevents the restore from proceeding. These represent two distinct blocking scenarios: one involves a competing non-restore operation, and the other involves a competing restore operation with the same backup.",
+      "generated_answer": "assistant: I cannot answer this question based on the provided context. The context only contains information about error code ARSD0025, which describes how an Instant Access session blocks a restore operation. There is no information about ARSD0029 or how its blocking conditions differ from ARSD0025.\n\nTo answer your question, I would need context that includes details about error code ARSD0029.",
+      "retrieval_path": "exact_match",
+      "detected_code": "ARSD0025",
+      "gold_chunk_ids": [
+        "a25e643d-7a09-4c4e-bb98-1812badbb9c8",
+        "ea0961e8-f4ec-49b3-bb01-61f5399d607a"
+      ],
+      "retrieved_chunk_ids": [
+        "a25e643d-7a09-4c4e-bb98-1812badbb9c8"
+      ],
+      "latency_ms": 27.318899985402822,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 1.0,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 41,
+      "query_type": "multi-hop",
+      "question": "An Avamar server contains Linux VMware Images, Windows VMware Images, and several unsupported asset types. After relocating all unsupported asset types to meet PTPP0005 requirements, the precheck still fails because PTPP0008 is triggered. What must be done to allow the migration to proceed?",
+      "reference_answer": "After relocating the unsupported asset types (leaving only Linux VMware Image and Windows VMware Image on the server), at least one DD system must be configured for the Avamar server before retrying the precheck and proceeding with migration.",
+      "generated_answer": "assistant: Based on the context provided, I can only answer what needs to be done regarding PTPP0005. The context states that after relocating unsupported asset types, you should \"retry the precheck.\"\n\nHowever, the context does not contain information about PTPP0008 or what must be done to resolve that specific error. Therefore, I cannot answer what needs to be done to allow the migration to proceed if PTPP0008 is triggered, as that is outside the scope of the provided context.\n\nFor assistance with PTPP0008, the context suggests contacting Dell Customer Support.",
+      "retrieval_path": "exact_match",
+      "detected_code": "PTPP0005",
+      "gold_chunk_ids": [
+        "990c5d3b-0117-499f-ab02-bd1ca32f3cd0",
+        "48b42f8f-d5b3-42a0-b944-f30c6a313c83"
+      ],
+      "retrieved_chunk_ids": [
+        "990c5d3b-0117-499f-ab02-bd1ca32f3cd0"
+      ],
+      "latency_ms": 16.176500008441508,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.15,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 42,
+      "query_type": "multi-hop",
+      "question": "When troubleshooting a PowerStore unavailability issue, why would packet loss verification be a relevant diagnostic step for AUSD0010 but the same error would not occur during unconfiguration when AUSD0004 is triggered instead?",
+      "reference_answer": "AUSD0010 is triggered during configuration removal and includes packet loss checking in its troubleshooting steps, while AUSD0004 is triggered during unconfiguration. The question requires recognizing that AUSD0010's troubleshooting procedure (which includes packet loss verification) applies specifically to the removal phase, whereas AUSD0004 applies to the unconfiguration phase—two different operational contexts where PowerStore unavailability manifests as different error codes with different troubleshooting approaches.",
+      "generated_answer": "assistant: The context doesn't contain information comparing AUSD0010 and AUSD0004 errors or explaining why packet loss verification would be relevant to one but not the other. The context only provides troubleshooting steps for AUSD0010, which includes checking packet loss, but it does not discuss AUSD0004 or provide a comparison between these two error codes.",
+      "retrieval_path": "exact_match",
+      "detected_code": "AUSD0010",
+      "gold_chunk_ids": [
+        "ff571e83-0819-47cb-a07a-2c80c24d3b75",
+        "89539758-c072-4636-800e-8612a8edb2be"
+      ],
+      "retrieved_chunk_ids": [
+        "ff571e83-0819-47cb-a07a-2c80c24d3b75"
+      ],
+      "latency_ms": 16.21159998467192,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.8,
+        "answer_correctness": 0.95
+      }
+    },
+    {
+      "query_id": 43,
+      "query_type": "multi-hop",
+      "question": "What type of user account change is indicated by alert code ADT0103 rather than the role change indicated by ADT0003?",
+      "reference_answer": "ADT0103 indicates a general user account update (not specifically a role change), whereas ADT0003 specifically indicates that a user's roles have been changed. These are distinct types of account modifications with different alert codes.",
+      "generated_answer": "assistant: The context does not contain information about alert code ADT0003 or a comparison between the types of user account changes indicated by ADT0103 versus ADT0003. I can only see that ADT0103 indicates a user has been updated, but the context does not explain what distinguishes this from ADT0003.",
+      "retrieval_path": "exact_match",
+      "detected_code": "ADT0103",
+      "gold_chunk_ids": [
+        "2c0c84a3-6a44-4b82-ad50-d853a1890dcd",
+        "1c82af1b-7234-4e82-b714-5f546184e2dd"
+      ],
+      "retrieved_chunk_ids": [
+        "2c0c84a3-6a44-4b82-ad50-d853a1890dcd"
+      ],
+      "latency_ms": 32.28169999783859,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 1.0,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.0,
+        "answer_correctness": 0.0
+      }
+    }
+  ]
+}

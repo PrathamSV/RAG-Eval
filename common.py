@@ -14,8 +14,11 @@ model/vendor.
 
 import os
 
+import psycopg2
+import psycopg2.extras
 from dotenv import load_dotenv
 from llama_index.core import Settings
+from llama_index.core.schema import NodeWithScore, TextNode
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.anthropic import Anthropic
 from llama_index.vector_stores.postgres import PGVectorStore
@@ -93,3 +96,53 @@ def get_pg_dsn() -> str:
         f"user={os.getenv('PGUSER', 'postgres')} "
         f"password={os.getenv('PGPASSWORD', 'postgres')}"
     )
+
+
+def fetch_nodes_by_error_code(code: str) -> list[NodeWithScore]:
+    """Exact-match lookup against the pgvector-managed chunks table by the
+    `error_code` stored in each node's metadata (set at ingest time by
+    parsers.py's parse_error_reference/parse_sop). Bypasses vector search
+    entirely -- deterministic, instead of hoping the embedding kept the
+    right chunk in the top-k. Opaque alphanumeric codes like "ABA0008"
+    carry little embedding-relevant semantic signal, so two catalog rows
+    for two *different* codes can end up closer together in vector space
+    than the code's own reference row and SOP are to each other -- exactly
+    the failure mode this bypasses.
+
+    Returns every chunk tagged with this error_code -- the single catalog
+    reference row (doc_type='reference') AND every SOP section
+    (doc_type='sop') -- as NodeWithScore(score=1.0), so downstream code
+    (generate(), citations, retrieval metrics) sees the same shape
+    regardless of whether vector search or this exact-match path produced
+    it. Returns an empty list if the code is well-formed but not actually
+    in the ingested catalog (a typo'd digit, or a code from a differently
+    versioned catalog) -- callers should treat that as "not a real code"
+    and fall back to normal retrieval, not as an error.
+
+    `metadata_` and `data_rag_chunks` are llama-index PGVectorStore's
+    standard column/table names (see get_vector_store / CHUNKS_TABLE
+    above) -- not something this function invents.
+    """
+    conn = psycopg2.connect(get_pg_dsn())
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT node_id, text, metadata_
+                FROM data_rag_chunks
+                WHERE metadata_->>'error_code' = %s
+                ORDER BY (metadata_->>'doc_type') ASC, id ASC
+                """,
+                (code,),
+            )
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+
+    return [
+        NodeWithScore(
+            node=TextNode(text=row["text"], id_=row["node_id"], metadata=row["metadata_"] or {}),
+            score=1.0,
+        )
+        for row in rows
+    ]

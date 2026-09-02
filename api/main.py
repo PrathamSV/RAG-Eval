@@ -46,6 +46,14 @@ class EvalRunRequest(BaseModel):
     use_reranker: bool = True
     rerank_top_n: int = 4
     top_k: int = 10
+    # When True, also writes a JSON file with each query's question,
+    # reference answer, generated answer, gold/retrieved chunk ids, and
+    # every metric -- for manual inspection alongside the DB-backed run.
+    save_details: bool = False
+    # Optional explicit path for that file. Defaults to
+    # ./eval_exports/eval_run_<id>_<timestamp>.json when omitted. Ignored
+    # if save_details is False.
+    output_path: Optional[str] = None
 
 
 @app.on_event("startup")
@@ -98,12 +106,16 @@ def generate_testset(req: GenerateTestsetRequest) -> dict:
 @app.post("/eval/run")
 def eval_run(req: EvalRunRequest) -> dict:
     try:
-        run_id = run_eval(
-            use_reranker=req.use_reranker, rerank_top_n=req.rerank_top_n, top_k=req.top_k
+        result = run_eval(
+            use_reranker=req.use_reranker,
+            rerank_top_n=req.rerank_top_n,
+            top_k=req.top_k,
+            save_details=req.save_details,
+            output_path=req.output_path,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    return {"run_id": run_id}
+    return {"run_id": result["run_id"], "details_path": result["details_path"]}
 
 
 @app.get("/eval/runs/{run_id}")

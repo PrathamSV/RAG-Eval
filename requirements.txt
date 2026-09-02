@@ -17,6 +17,13 @@ psycopg2-binary>=2.9.0
 
 # Reranker (cross-encoder postprocessor, phase 5)
 sentence-transformers>=2.7.0
+ 
+# PPDM source parsing (parsers.py): pdfplumber pulls words from the event
+# catalog PDF in content-stream order (use_text_flow=True) so the
+# Severity/Category/Message-ID row structure survives extraction. The SOP
+# docx side uses the external `pandoc` CLI instead (not pip-installable --
+# see README.md), so no package is needed for that half.
+pdfplumber>=0.11.0
 
 # Orchestration: serving graph + eval graph (phases 3-6)
 langgraph>=0.2.0

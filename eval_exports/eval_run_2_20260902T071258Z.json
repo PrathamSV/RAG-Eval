@@ -1,0 +1,549 @@
+{
+  "run_id": 2,
+  "config": {
+    "embedding_model": "gemini-embedding-001",
+    "generation_model": "claude-haiku-4-5-20251001",
+    "use_reranker": true,
+    "rerank_top_n": 3,
+    "top_k": 10
+  },
+  "n_queries": 21,
+  "queries": [
+    {
+      "query_id": 6,
+      "query_type": "single-hop",
+      "question": "What protection policy did the ADT2004 Protection rule change from, and what policy did it change to?",
+      "reference_answer": "The ADT2004 Protection rule changed its protection policy from <oldPlcName> to <newPlcName>.",
+      "generated_answer": "assistant: According to the context, the ADT2004 Protection rule changed its protection policy from `<oldPlcName>` to `<newPlcName>`. However, the context does not provide the specific names of these policies—only placeholder variables are shown.",
+      "gold_chunk_ids": [
+        "8860f062-9d2e-49ec-bad9-f40133e0488f"
+      ],
+      "retrieved_chunk_ids": [
+        "8860f062-9d2e-49ec-bad9-f40133e0488f",
+        "d82c8595-6e53-43f4-a1e5-82817d2fc14b",
+        "7feeb015-c7d3-47f1-b743-e198b0fc1450"
+      ],
+      "latency_ms": 17123.222700000042,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.5,
+        "answer_correctness": 0.95
+      }
+    },
+    {
+      "query_id": 7,
+      "query_type": "single-hop",
+      "question": "According to the ACSD0006 error message, what should be verified to resolve the array configuration failure for a PowerStore connection?",
+      "reference_answer": "The PowerStore management interface credentials should be verified to ensure they are correct, and then the operation should be retried.",
+      "generated_answer": "assistant: The context doesn't contain information about the ACSD0006 error message. The provided context only includes details for error codes ACSD0003, ACSD0004, and ACSD0002.",
+      "gold_chunk_ids": [
+        "49b143fb-bad7-404f-aafb-c816bbbe1e30"
+      ],
+      "retrieved_chunk_ids": [
+        "0e113e15-b549-4226-916c-45b43bccdc9f",
+        "89c6a729-1d3f-44eb-bd25-370cc60eaf77",
+        "856850ed-72ef-46be-95c3-2965229d2621"
+      ],
+      "latency_ms": 325.0411999761127,
+      "metrics": {
+        "hit_rate": 0.0,
+        "recall": 0.0,
+        "precision": 0.0,
+        "mrr": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.0,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 8,
+      "query_type": "single-hop",
+      "question": "What is preventing the ARV0043 VM Direct engine from restoring a virtual machine on vCenter, and what action should be taken to resolve this issue?",
+      "reference_answer": "A cold migration of the virtual machine is in progress, which prevents the VM Direct engine from completing the restore. The user should wait for the cold migration to complete and then retry the restore operation.",
+      "generated_answer": "assistant: The context doesn't contain information about ARV0043. The provided context only includes details about error codes ARV0014, ARV0011, and ARV0019.",
+      "gold_chunk_ids": [
+        "66c109aa-75d3-4567-9a9b-fac061f01c6d"
+      ],
+      "retrieved_chunk_ids": [
+        "df6f118e-4e6e-4e74-913a-f57f79644827",
+        "7b2a2c7f-c618-4154-9060-609d1e157eb0",
+        "6fa29148-4072-4822-85ea-957c21c43b0f"
+      ],
+      "latency_ms": 233.31709997728467,
+      "metrics": {
+        "hit_rate": 0.0,
+        "recall": 0.0,
+        "precision": 0.0,
+        "mrr": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.0,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 9,
+      "query_type": "single-hop",
+      "question": "What is the error code and component name mentioned in the system message about a precheck timeout?",
+      "reference_answer": "The error code is UPG0026 and the component is Integrated Storage. The precheck timed out, and the message advises checking Integrated Storage cluster status and network.",
+      "generated_answer": "assistant: Based on the context provided, the error code mentioned for a precheck timeout is **UPG0022**, and the component name is **Critical System**.\n\nThe full message states: \"UPG0022 Timed out while running precheck. Critical System\"",
+      "gold_chunk_ids": [
+        "1ab136f3-4bf9-4a14-8ae6-071732edb21a"
+      ],
+      "retrieved_chunk_ids": [
+        "fe37fcfd-7eee-4f7a-9596-fe7194fea39f",
+        "9a2ed65e-20ed-4182-96f2-edf9aa7d4bab",
+        "f50508b8-6bca-4f83-b144-c252bac89eaa"
+      ],
+      "latency_ms": 217.23159999237396,
+      "metrics": {
+        "hit_rate": 0.0,
+        "recall": 0.0,
+        "precision": 0.0,
+        "mrr": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 1.0,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 10,
+      "query_type": "single-hop",
+      "question": "Where should an administrator look to find log files that contain information about which virtual machine tags were not restored properly?",
+      "reference_answer": "/var/log/brs/vmdm",
+      "generated_answer": "assistant: According to the context, an administrator should review the log files at **/var/log/brs/vmdm** to determine the tags that were not restored properly.",
+      "gold_chunk_ids": [
+        "2c691271-c1a1-4d58-9c28-2f1512c7901c"
+      ],
+      "retrieved_chunk_ids": [
+        "2c691271-c1a1-4d58-9c28-2f1512c7901c",
+        "0da2fd77-5377-4491-bec1-010804e534ed",
+        "6bc8c406-1716-4c42-b1e7-db90e334ad92"
+      ],
+      "latency_ms": 484.94639998534694,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.8,
+        "answer_correctness": 1.0
+      }
+    },
+    {
+      "query_id": 11,
+      "query_type": "single-hop",
+      "question": "What is the message code and classification type for a backup snapshot job that has started for a NAS asset?",
+      "reference_answer": "The message code is NASBK0007 and the classification type is Informational Protection.",
+      "generated_answer": "assistant: Based on the context provided, the message code for a backup snapshot job that has started for a NAS asset is **NASBK0007**, and the classification type is **Informational Protection**.",
+      "gold_chunk_ids": [
+        "b8825787-317e-4e20-9f99-db75f30bbbcd"
+      ],
+      "retrieved_chunk_ids": [
+        "3997efe4-62c8-4e92-8951-c346edc831b4",
+        "b8825787-317e-4e20-9f99-db75f30bbbcd",
+        "20f784ec-495e-461f-bede-075865aec6a1"
+      ],
+      "latency_ms": 284.3978999881074,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333,
+        "mrr": 0.5,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.95,
+        "answer_correctness": 1.0
+      }
+    },
+    {
+      "query_id": 12,
+      "query_type": "single-hop",
+      "question": "According to the passage, what is the reason that a restore operation cannot be completed for an asset?",
+      "reference_answer": "The restore cannot be completed because the metadata file for the specified backup is not accessible from the storage target or is not available.",
+      "generated_answer": "assistant: According to the passage, a restore operation cannot be completed for an asset for several reasons:\n\n1. **Insufficient free space on the host** - The host does not have available space to complete the restore (ARG0011)\n\n2. **Insufficient capacity on the target Hyper-V Server** - The target server does not have the minimum required capacity to perform the restore (ARGHV0007)\n\n3. **Unable to update ownership** - Ownership of the restored files cannot be updated, often due to insufficient permissions of the Run As user (ARG0008)",
+      "gold_chunk_ids": [
+        "c8b335cc-b955-4c77-89c1-e522ea0a0414"
+      ],
+      "retrieved_chunk_ids": [
+        "956d6b1a-2516-4791-8162-c473fa30d23a",
+        "a398dc97-f8ad-4c39-b9d5-358d075637fa",
+        "bfd520fe-7d8c-436d-8876-3a89a2f2e3fd"
+      ],
+      "latency_ms": 241.84380000224337,
+      "metrics": {
+        "hit_rate": 0.0,
+        "recall": 0.0,
+        "precision": 0.0,
+        "mrr": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 1.0,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 13,
+      "query_type": "single-hop",
+      "question": "What action should be taken in response to the UPG0066 warning about unacknowledged critical alerts?",
+      "reference_answer": "View and acknowledge any critical alert(s), taking appropriate action to resolve the issue(s).",
+      "generated_answer": "assistant: According to the context, in response to the UPG0066 warning about unacknowledged critical alerts, you should:\n\n1. View and acknowledge any critical alert(s)\n2. Take appropriate action to resolve the issue(s)",
+      "gold_chunk_ids": [
+        "272d1a79-f8a3-4fbf-a66e-87cae7f1b952"
+      ],
+      "retrieved_chunk_ids": [
+        "272d1a79-f8a3-4fbf-a66e-87cae7f1b952",
+        "824906c1-f52d-40a5-ab3f-a8d4bacee321",
+        "9a2ed65e-20ed-4182-96f2-edf9aa7d4bab"
+      ],
+      "latency_ms": 200.8370000112336,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 1.0
+      }
+    },
+    {
+      "query_id": 14,
+      "query_type": "single-hop",
+      "question": "According to the ABO0009 error message, what is the primary reason that PowerProtect Data Manager Oracle agent cannot perform the backup for an Oracle database?",
+      "reference_answer": "The Oracle SID cannot be obtained from the database ID, and the agent is unable to connect to the database.",
+      "generated_answer": "assistant: The context provided does not contain information about the ABO0009 error message. The context only includes details about error messages ABO0528, ABO0526, and ABO0543. Therefore, I cannot answer your question based on the given context.",
+      "gold_chunk_ids": [
+        "9f2bdc49-caf7-47a4-ae2f-cd354cb02b0b"
+      ],
+      "retrieved_chunk_ids": [
+        "8f60e290-2115-4b4f-8df0-065f477bf30d",
+        "6f1577d1-9b69-423e-a919-a6168b23cc56",
+        "2f8df9d7-f46b-427b-aa4f-4a72a03d34a5"
+      ],
+      "latency_ms": 293.39119998621754,
+      "metrics": {
+        "hit_rate": 0.0,
+        "recall": 0.0,
+        "precision": 0.0,
+        "mrr": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.0,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 15,
+      "query_type": "single-hop",
+      "question": "According to error ARSD0036, what log file location should be reviewed to get more information about why an eligible protection engine is not available?",
+      "reference_answer": "/var/log/brs/sdmng/sdmng.log",
+      "generated_answer": "assistant: According to error ARSD0036, the log file location that should be reviewed is:\n\n**/var/log/brs/sdmng/sdmng.log**",
+      "gold_chunk_ids": [
+        "fbf54465-a5f6-4fa3-82a2-e845ace3c582"
+      ],
+      "retrieved_chunk_ids": [
+        "fbf54465-a5f6-4fa3-82a2-e845ace3c582",
+        "7a39b08a-0025-460c-961e-97b7fd33a349",
+        "a584acab-1b39-4d9a-b80c-220e8de282ea"
+      ],
+      "latency_ms": 319.8557000141591,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.3333333333333333,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 1.0
+      }
+    },
+    {
+      "query_id": 16,
+      "query_type": "multi-hop",
+      "question": "Could the presence of multiple recovery checkpoints (ABHV0009) be a reason why the checkpoint file list cannot be fetched (ABHV0014)?",
+      "reference_answer": "While both passages describe checkpoint-related failures, Passage A identifies a failure to fetch the checkpoint file list as the problem without specifying the cause, while Passage B identifies having multiple recovery checkpoints as a specific condition that prevents backup completion. The question connects these by asking whether the multiple checkpoint condition from ABHV0009 could be an underlying cause of the file list fetching failure in ABHV0014, requiring knowledge of both the specific failure mechanism (ABHV0014) and the specific problematic condition (ABHV0009).",
+      "generated_answer": "assistant: Based on the context provided, I cannot definitively answer whether multiple recovery checkpoints could cause the checkpoint file list fetch failure. \n\nThe context describes these as two separate errors:\n- ABHV0009 occurs when a VM has more than one recovery checkpoint, preventing backup completion\n- ABHV0014 occurs when fetching the checkpoint file list fails\n\nHowever, the context does not explicitly state whether one error condition can cause the other. To determine if ABHV0009 could be a root cause of ABHV0014, you would need to consult the exported logs as both error messages recommend.",
+      "gold_chunk_ids": [
+        "a5e26b37-53d5-4171-af34-d7301e8c25d0",
+        "b7771967-85a0-4c1e-b4eb-c7f6515e4142"
+      ],
+      "retrieved_chunk_ids": [
+        "a5e26b37-53d5-4171-af34-d7301e8c25d0",
+        "b7771967-85a0-4c1e-b4eb-c7f6515e4142",
+        "7a738b5c-c3c8-4b80-9d21-40ff21fb38dd"
+      ],
+      "latency_ms": 321.6866000148002,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.6666666666666666,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.85,
+        "answer_correctness": 0.8
+      }
+    },
+    {
+      "query_id": 17,
+      "query_type": "multi-hop",
+      "question": "If a user lacks the required vCenter privileges causing data protection operations to fall back to VDDK instead of Transparent Snapshot Data Mover, and incremental discovery of virtual machine assets has also failed, would starting a manual discovery of virtual machine assets allow the system to bypass the VDDK fallback mechanism, or would the privilege issue still require explicit privilege elevation regardless of which discovery method is used?",
+      "reference_answer": "No, manual discovery would not resolve the privilege issue or bypass the VDDK fallback. Passage B indicates that manual discovery is a method to discover virtual machine assets when incremental discovery fails, but Passage A clearly states that the fallback to VDDK occurs due to missing vCenter account privileges, and these required privileges must be explicitly added to the vCenter account to resolve the fallback—a step that is independent of which discovery method is used.",
+      "generated_answer": "assistant: The context doesn't contain information to answer this question. \n\nThe context explains that missing vCenter privileges will cause data protection operations to fall back to VDDK instead of using Transparent Snapshot Data Mover, and that privileges must be added to resolve this issue. However, the context does not discuss whether different discovery methods (manual vs. incremental) would bypass the privilege requirement or affect the VDDK fallback mechanism.",
+      "gold_chunk_ids": [
+        "30c83ea7-a0f0-482e-94a0-f91027c8f2bd",
+        "17e67d75-8871-467f-be18-7482004a60bc"
+      ],
+      "retrieved_chunk_ids": [
+        "30c83ea7-a0f0-482e-94a0-f91027c8f2bd",
+        "48a1a4cd-21f7-4e65-83fb-6d4b429f97e4",
+        "7276b0ea-3945-44df-bbf5-07bd98d3d72b"
+      ],
+      "latency_ms": 431.74999998882413,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 0.3333333333333333,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.0,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 18,
+      "query_type": "multi-hop",
+      "question": "Why would the pre-existing Instant Access session described in ARSD0018 potentially prevent the database restore operation in ARS0015 from successfully connecting to the SQL server?",
+      "reference_answer": "The existing Instant Access session for the copy (ARSD0018) may be holding a lock or maintaining an active connection that blocks the SQL provider from establishing a new connection to the SQL server instance needed for the restore operation (ARS0015). Deleting the existing session as recommended in ARSD0018 could resolve the SQL connection error in ARS0015.",
+      "generated_answer": "assistant: I cannot answer this question based on the provided context. The context includes information about error codes ARSD0018, ARSD0025, and ARSD0026, but there is no error code \"ARS0015\" mentioned in the context, and there is no information about database restore operations or SQL server connections.\n\nTo answer your question, I would need context that includes details about ARS0015 and how it relates to SQL server connectivity.",
+      "gold_chunk_ids": [
+        "bc69ee1d-c2ac-4b47-9627-3cd4dcc6eef9",
+        "0003abea-0e9b-47a8-a5da-dab2d12b7b1c"
+      ],
+      "retrieved_chunk_ids": [
+        "bc69ee1d-c2ac-4b47-9627-3cd4dcc6eef9",
+        "a25e643d-7a09-4c4e-bb98-1812badbb9c8",
+        "763bd69f-e0b1-41e2-9641-950da33a7552"
+      ],
+      "latency_ms": 226.0279000038281,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 0.3333333333333333,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 19,
+      "query_type": "multi-hop",
+      "question": "If the DD hostname is not properly specified in the Primary Backup configuration as described in Passage A, how might this prevent the agent from successfully unmounting the PowerProtect DD storage unit during an Incremental Merge backup as mentioned in Passage B?",
+      "reference_answer": "Without the DD hostname properly configured in the Primary Backup settings, the agent cannot establish the correct connection to the PowerProtect DD system, which would prevent it from communicating the unmount command to the storage unit during Incremental Merge backup operations.",
+      "generated_answer": "assistant: I cannot answer this question based on the provided context. The context does not contain any information about \"Passage B\" or details regarding how an improperly specified DD hostname might affect unmounting the PowerProtect DD storage unit during an Incremental Merge backup. The context only addresses issues related to backup failures when the DD hostname or PowerProtect DD system is not specified, but does not discuss unmounting operations or Incremental Merge backups.",
+      "gold_chunk_ids": [
+        "55ac7876-aa31-49fd-b14e-2673643e4e64",
+        "6f1577d1-9b69-423e-a919-a6168b23cc56"
+      ],
+      "retrieved_chunk_ids": [
+        "55ac7876-aa31-49fd-b14e-2673643e4e64",
+        "27b7fb3c-d659-4ca6-af9c-0fe6b9e0ce43",
+        "fb359c85-465f-44cb-a1cb-a98d341ea3ee"
+      ],
+      "latency_ms": 376.4781999925617,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 0.3333333333333333,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 20,
+      "query_type": "multi-hop",
+      "question": "If instance information cannot be discovered as described in ABO0028, how would an administrator provide the Oracle username from the installed Oracle home as required to resolve ABO0540?",
+      "reference_answer": "The two errors represent different failure points in the backup process: ABO0028 fails at the instance discovery stage before credentials are needed, while ABO0540 fails later when trying to extract the username from an Oracle home that was presumably already located. An administrator would need to first resolve the instance discovery issue (ABO0028) to reach the point where the Oracle home is accessible, which would then allow the agent to obtain the username needed to resolve ABO0540.",
+      "generated_answer": "assistant: The context doesn't contain information about how an administrator would provide the Oracle username from the installed Oracle home to resolve ABO0540 in the case where instance information cannot be discovered (ABO0028).\n\nWhile ABO0540 states that you should \"confirm the installed Oracle home and resubmit the backup request,\" the context does not explain the specific steps or method for providing the Oracle username when instance information cannot be discovered.",
+      "gold_chunk_ids": [
+        "3c735bb0-b809-4b4f-ae86-19f3bba88bd8",
+        "05caa2d8-c9d5-4eaa-ac6b-18089b7e75e4"
+      ],
+      "retrieved_chunk_ids": [
+        "3c735bb0-b809-4b4f-ae86-19f3bba88bd8",
+        "05caa2d8-c9d5-4eaa-ac6b-18089b7e75e4",
+        "53accc6d-c9ca-45a2-872e-f93be4dfdd61"
+      ],
+      "latency_ms": 257.25240001338534,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.6666666666666666,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.0,
+        "answer_correctness": 0.15
+      }
+    },
+    {
+      "query_id": 21,
+      "query_type": "multi-hop",
+      "question": "If a restore operation fails with ARV0009 because no objects can be restored to the VM, but the underlying cause is actually an ARV0041 VMware API failure, why would the troubleshooting approach of verifying user file permissions and waiting for VM activity to decrease be insufficient to resolve the issue?",
+      "reference_answer": "Because ARV0009's troubleshooting steps (checking user permissions and VM activity) address object-level and VM load issues, but ARV0041 reveals the actual problem is a failed VMware API operation at the infrastructure level. User permissions and VM busyness are irrelevant when the VMware API itself cannot complete the restore operation successfully, so these steps would not resolve an ARV0041 scenario.",
+      "generated_answer": "assistant: The context provided does not contain information about ARV0041 or any details about VMware API failures. Therefore, I cannot answer this question using only the context given.\n\nThe context only includes information about error codes ARV0009, ARV0019, and ARV0037, but does not discuss ARV0041 or explain the relationship between these error codes.",
+      "gold_chunk_ids": [
+        "f17a2062-f5e2-44d3-b26b-bcca892167a7",
+        "f90236b0-13fd-4ea8-b9e5-60bb2be9ecfc"
+      ],
+      "retrieved_chunk_ids": [
+        "f17a2062-f5e2-44d3-b26b-bcca892167a7",
+        "6fa29148-4072-4822-85ea-957c21c43b0f",
+        "7ccfe548-3c29-476a-8dd6-22754b9aad17"
+      ],
+      "latency_ms": 271.92549998289905,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 0.3333333333333333,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 22,
+      "query_type": "multi-hop",
+      "question": "What structural difference in how APO0019 presents the initial failure reason (before listing the four detailed causes) makes the addition of the '<DBID>' parameter necessary compared to APO0016's approach?",
+      "reference_answer": "APO0016 begins by stating the failure is 'because the Oracle database username and password cannot be verified,' which only identifies the database by '<SID>'. APO0019 consolidates the initial reason into 'because either the entered username and password cannot be validated or the database is unavailable' and must include '<DBID>' to uniquely identify which specific database instance is affected when multiple databases with the same SID might exist in the system.",
+      "generated_answer": "assistant: I cannot answer this question based on the provided context. The context does not contain any information about APO0019 or APO0016, nor does it discuss structural differences in how these error codes present failure reasons or explain why a '<DBID>' parameter would be necessary in one approach versus another.",
+      "gold_chunk_ids": [
+        "c12be2db-2f56-40ce-98bc-24a504e373e6",
+        "1ab2bdf9-e0a1-470a-902d-20179535cebf"
+      ],
+      "retrieved_chunk_ids": [
+        "1101c36b-805d-459e-afc3-7beb52a61b47",
+        "27d9f5d3-812d-40fb-98f4-d8be24ed787d",
+        "567dce03-e413-407c-9904-60bb3b13d662"
+      ],
+      "latency_ms": 289.62170000886545,
+      "metrics": {
+        "hit_rate": 0.0,
+        "recall": 0.0,
+        "precision": 0.0,
+        "mrr": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 1.0,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 23,
+      "query_type": "multi-hop",
+      "question": "How might the failed copies mentioned in the metadata migration affect the ability to meet the date range requirement for extended retention, and what would be the consequence?",
+      "reference_answer": "If copies failed during the metadata migration to the new data model, those failed copies would not be available as valid copies within the required fromDate to toDate range, which would prevent extended retention from being completed for affected assets, triggering the CPLE0009 error condition.",
+      "generated_answer": "assistant: The context doesn't contain information about how failed copies in metadata migration would affect the ability to meet date range requirements for extended retention, or what the consequences would be.\n\nWhile the context describes CPLE0005 and CPLE0009 errors that occur when no valid copies are available within a specified date range for extended retention, and it mentions CPLE0019 which indicates failed copies during metadata migration, it does not explicitly explain the relationship between these failed copies and their impact on extended retention date range requirements or the resulting consequences.",
+      "gold_chunk_ids": [
+        "adfce9b1-af0a-48d1-bed4-4a1fd2061b7d",
+        "d44be386-1d3d-4cd2-b709-6adf72287ebb"
+      ],
+      "retrieved_chunk_ids": [
+        "46a6c097-569a-43f2-a0ea-a0cb5162c251",
+        "d44be386-1d3d-4cd2-b709-6adf72287ebb",
+        "adfce9b1-af0a-48d1-bed4-4a1fd2061b7d"
+      ],
+      "latency_ms": 302.7900999877602,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.6666666666666666,
+        "mrr": 0.5,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 24,
+      "query_type": "multi-hop",
+      "question": "How might the automatic restart of replication jobs mentioned in ARP0031 differ in outcome if the minimum retention-interval requirement from ARP0027 has not been configured by the user?",
+      "reference_answer": "The automatic restart in ARP0031 could fail again with the same error as ARP0027 if the minimum retention-interval has not been set above 0, since the underlying configuration issue would not be resolved by the maintenance mode cleanup alone.",
+      "generated_answer": "assistant: The context doesn't contain information about how the automatic restart of replication jobs in ARP0031 would differ in outcome if the minimum retention-interval requirement from ARP0027 has not been configured. \n\nWhile ARP0031 states that replication jobs will be \"restarted automatically\" after maintenance mode, and ARP0027 explains that replication jobs fail when minimum retention time is not specified, the context does not describe what would happen if these two scenarios interact or how the automatic restart would handle a missing retention-interval configuration.",
+      "gold_chunk_ids": [
+        "8d582e8d-542d-48af-b091-91ec3ce7181c",
+        "b050587e-0d8d-4dcd-b11d-956cedd2d9b9"
+      ],
+      "retrieved_chunk_ids": [
+        "8d582e8d-542d-48af-b091-91ec3ce7181c",
+        "b050587e-0d8d-4dcd-b11d-956cedd2d9b9",
+        "2e95bdd9-21e0-4985-b421-860c7671eaa8"
+      ],
+      "latency_ms": 270.7492000190541,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 1.0,
+        "precision": 0.6666666666666666,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.9,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 25,
+      "query_type": "multi-hop",
+      "question": "Why would an unrecognized warning alert (CSM0027) require review in the Cloud Snapshot Manager Dashboard when a critical system error (CSME0005) from the same system directs users to contact support instead?",
+      "reference_answer": "The difference in severity levels (Warning vs. Critical) determines the appropriate response: Warning-level alerts can be self-investigated through the dashboard, while Critical System errors require escalation to the support team rather than independent troubleshooting.",
+      "generated_answer": "assistant: The context doesn't contain information about CSME0005 or explain the reasoning behind why CSM0027 directs users to review the Cloud Snapshot Manager Dashboard versus contacting support. I can only confirm that CSM0027 is an unrecognized warning alert that instructs users to review the alert in the Cloud Snapshot Manager Dashboard, but the context doesn't explain the rationale for this approach or how it compares to other error codes.",
+      "gold_chunk_ids": [
+        "572a20d8-af5b-496d-a76a-8a3031919ceb",
+        "ba2f1462-780b-4ae0-bdab-600720b24eb4"
+      ],
+      "retrieved_chunk_ids": [
+        "26fd1567-a3c8-46c0-8d5f-13b03baaf550",
+        "572a20d8-af5b-496d-a76a-8a3031919ceb",
+        "af46d40c-6810-427b-89b5-63c4fae2995b"
+      ],
+      "latency_ms": 208.11910001793876,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 0.3333333333333333,
+        "mrr": 0.5,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.8,
+        "answer_correctness": 0.0
+      }
+    },
+    {
+      "query_id": 26,
+      "query_type": "multi-hop",
+      "question": "If a user encounters APU0004 and follows the troubleshooting step to check network connectivity between PowerProtect Data Manager and the agent host, but then receives APU0001 instead, what does this suggest about where the problem has shifted from the initial APU0004 diagnosis?",
+      "reference_answer": "The shift from APU0004 to APU0001 suggests the problem has moved from a connection/agent host issue to an internal server error on the PowerProtect Data Manager server itself, indicating the server may have encountered a processing error while attempting to handle the operation after the network connectivity was restored.",
+      "generated_answer": "assistant: The context doesn't contain information about error code APU0001, so I cannot answer this question based on the provided context. To answer your question about what APU0001 suggests and how it differs from APU0004, I would need the definition and troubleshooting steps for APU0001.",
+      "gold_chunk_ids": [
+        "b84638f3-c5ca-4f4e-9852-b0dac3d679c2",
+        "325c4af7-1bb4-4d0f-8f8f-4ba1e671171a"
+      ],
+      "retrieved_chunk_ids": [
+        "b84638f3-c5ca-4f4e-9852-b0dac3d679c2",
+        "4889277f-683d-4706-bd46-c08630da4cd3",
+        "65f720ce-eda7-4097-bbb6-d20e98ab218f"
+      ],
+      "latency_ms": 296.99050000635907,
+      "metrics": {
+        "hit_rate": 1.0,
+        "recall": 0.5,
+        "precision": 0.3333333333333333,
+        "mrr": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevance": 0.0,
+        "answer_correctness": 0.0
+      }
+    }
+  ]
+}
