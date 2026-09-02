@@ -100,33 +100,25 @@ _SEVERITY_TAIL = re.compile(r'\b(Critical|Warning|Informational)\s+([A-Za-z][A-Z
 _TRAILING_PAGE_NUMS = re.compile(r'(\s+\d{1,3})+$')
 
 
+def normalize_error_codes(text: str) -> list[str]:
+    """All distinct code-shaped tokens in free text, normalized and
+    de-duplicated (order of first appearance preserved). Plural sibling of
+    normalize_error_code -- a question can legitimately reference more than
+    one code (e.g. "why does X cause ASSD0017 but ABSD0024 during Y"), and
+    silently keeping only the first one drops the second code's context
+    entirely."""
+    seen = []
+    for m in _CODE_CANDIDATE.finditer(text):
+        candidate = f"{m.group(1)}{m.group(2)}".upper()
+        if re.fullmatch(_ERROR_CODE, candidate) and candidate not in seen:
+            seen.append(candidate)
+    return seen
+
+
 def normalize_error_code(text: str) -> str | None:
-    """Best-effort extraction + normalization of a PPDM error code from
-    free text (a user's question, a pasted log line, etc.).
-
-    Handles the formatting variants people actually type or paste --
-    "ABA-0008", "aba 0008", "ABA_0008", lowercase, extra whitespace -- by
-    stripping the separator between the letter and digit runs and
-    uppercasing, then checking the normalized result against the
-    canonical code shape (_ERROR_CODE: 2-10 letters + 3-5 digits, the
-    same shape the catalog PDF and SOP filenames/titles use).
-
-    Returns the normalized code (e.g. "ABA0008") if `text` contains
-    something code-shaped, else None. Does NOT verify the code actually
-    exists in the ingested catalog -- that's a DB lookup
-    (fetch_nodes_by_error_code in common.py), not this function's job.
-    Deliberately intersects two independent regexes (a loose free-text
-    candidate here, the canonical catalog shape) rather than one combined
-    pattern, so a stray digit run in ordinary prose ("in 2026") can match
-    the loose candidate without silently becoming "correct" -- it still
-    has to pass the same shape check a real catalog code does, and even
-    then a DB miss just falls back to normal retrieval upstream.
-    """
-    match = _CODE_CANDIDATE.search(text)
-    if not match:
-        return None
-    candidate = f"{match.group(1)}{match.group(2)}".upper()
-    return candidate if re.fullmatch(_ERROR_CODE, candidate) else None
+    """Single-code convenience wrapper, kept for any other call site."""
+    codes = normalize_error_codes(text)
+    return codes[0] if codes else None
 
 
 def _run(cmd: list) -> str:

@@ -43,8 +43,9 @@ from llama_index.core.llms import ChatMessage
 from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.core.schema import NodeWithScore
 
-from common import configure_llamaindex_settings, fetch_nodes_by_error_code, get_llm, get_vector_store
-from parsers import normalize_error_code
+from common import GENERATE_PROMPT, build_numbered_context, get_cached_index, get_llm, get_reranker
+from hybrid_retrieval import hybrid_retrieve
+from parsers import normalize_error_codes
 
 MAX_RETRIEVE_ATTEMPTS = 2
 RETRIEVE_TOP_K = 10
@@ -57,9 +58,11 @@ class ServingState(TypedDict, total=False):
     question: str
     rewritten_question: str
     attempts: int
-    detected_code: Optional[str]
+    detected_codes: List[str]
     code_lookup_attempted: bool
-    retrieval_path: str  # "exact_match" | "vector" -- for citations/debugging
+    exact_match_nodes: List[NodeWithScore]
+    missing_codes: List[str]
+    retrieval_path: str  # "exact_match" | "exact_match+hybrid" | "hybrid"
     retrieved_nodes: List[NodeWithScore]
     reranked_nodes: List[NodeWithScore]
     sufficient: bool
@@ -68,42 +71,14 @@ class ServingState(TypedDict, total=False):
     citations: List[dict]
 
 
-_cached_index: VectorStoreIndex | None = None
-
-
-def _build_index() -> VectorStoreIndex:
-    global _cached_index
-    if _cached_index is None:
-        configure_llamaindex_settings()
-        _cached_index = VectorStoreIndex.from_vector_store(get_vector_store())
-    return _cached_index
-
-
-_reranker_cache: dict[int, SentenceTransformerRerank] = {}
-
-
-def _get_reranker(top_n: int) -> SentenceTransformerRerank:
-    if top_n not in _reranker_cache:
-        _reranker_cache[top_n] = SentenceTransformerRerank(
-            model="cross-encoder/ms-marco-MiniLM-L-6-v2", top_n=top_n
-        )
-    return _reranker_cache[top_n]
-
 def rewrite_query(state: ServingState) -> dict:
-    """First pass: use the question as-is, and check it for an exact error
-    code while we're at it (see route_after_rewrite). On a retry (context
-    judged insufficient on the vector path), broaden the phrasing so a
-    second retrieval has a genuinely different shot at finding relevant
-    passages -- code detection isn't repeated here, since the vector
-    fallback only runs when a code either wasn't present or didn't match
-    anything in the catalog, and that fact doesn't change on retry."""
     rid = state["request_id"]
     if state.get("attempts", 0) == 0:
-        code = normalize_error_code(state["question"])
-        if code:
-            print(f"[{rid}] detected error code in question: {code}", flush=True)
+        codes = normalize_error_codes(state["question"])
+        if codes:
+            print(f"[{rid}] detected error code(s) in question: {codes}", flush=True)
         print(f"[{rid}] attempt 1: using question as-is", flush=True)
-        return {"rewritten_question": state["question"], "attempts": 1, "detected_code": code}
+        return {"rewritten_question": state["question"], "attempts": 1, "detected_codes": codes}
 
     print(f"[{rid}] attempt {state['attempts'] + 1}: rewriting question for retry...", flush=True)
     llm = get_llm()
@@ -118,11 +93,8 @@ def rewrite_query(state: ServingState) -> dict:
 
 
 def route_after_rewrite(state: ServingState) -> str:
-    """Send exact-code-shaped questions to the deterministic lookup path
-    first; everything else (no code, or a retry after the lookup already
-    failed once) goes to normal vector retrieval."""
     rid = state["request_id"]
-    if state.get("detected_code") and not state.get("code_lookup_attempted"):
+    if state.get("detected_codes") and not state.get("code_lookup_attempted"):
         print(f"[{rid}] routing to exact-match code lookup", flush=True)
         return "code_lookup"
     return "retrieve"
@@ -130,48 +102,77 @@ def route_after_rewrite(state: ServingState) -> str:
 
 def code_lookup(state: ServingState) -> dict:
     rid = state["request_id"]
-    code = state["detected_code"]
-    print(f"[{rid}] exact-match lookup for error_code={code}...", flush=True)
-    nodes = fetch_nodes_by_error_code(code)
-    print(f"[{rid}] exact-match lookup found {len(nodes)} chunk(s) for {code}", flush=True)
-    # reranked_nodes (not retrieved_nodes) so this slots directly into
-    # generate()/faithfulness_check() without needing a separate field --
-    # an exact metadata match doesn't need reranking or a sufficiency
-    # score, it's already the ground truth for this code.
-    return {"reranked_nodes": nodes, "code_lookup_attempted": True, "retrieval_path": "exact_match"}
+    codes = state["detected_codes"]
+    found_nodes: List[NodeWithScore] = []
+    missing_codes: List[str] = []
+    seen_ids = set()
+
+    for code in codes:
+        print(f"[{rid}] exact-match lookup for error_code={code}...", flush=True)
+        nodes = fetch_nodes_by_error_code(code)
+        print(f"[{rid}] exact-match lookup found {len(nodes)} chunk(s) for {code}", flush=True)
+        if nodes:
+            for n in nodes:
+                if n.node.node_id not in seen_ids:
+                    found_nodes.append(n)
+                    seen_ids.add(n.node.node_id)
+        else:
+            missing_codes.append(code)
+
+    return {
+        "reranked_nodes": found_nodes,
+        "exact_match_nodes": found_nodes,
+        "missing_codes": missing_codes,
+        "code_lookup_attempted": True,
+        "retrieval_path": "exact_match",
+    }
 
 
 def route_after_code_lookup(state: ServingState) -> str:
     rid = state["request_id"]
-    if state["reranked_nodes"]:
-        print(f"[{rid}] exact match found -- skipping rerank/sufficiency, generating directly", flush=True)
+    if state["reranked_nodes"] and not state["missing_codes"]:
+        print(f"[{rid}] all detected code(s) matched -- skipping rerank/sufficiency, generating directly", flush=True)
         return "generate"
-    print(
-        f"[{rid}] '{state['detected_code']}' is code-shaped but matched no chunks in the "
-        f"catalog -- falling back to vector retrieval",
-        flush=True,
-    )
+    if state["missing_codes"]:
+        print(
+            f"[{rid}] code(s) {state['missing_codes']} code-shaped but matched no chunks in the "
+            f"catalog -- falling back to hybrid retrieval to fill the gap "
+            f"({len(state['reranked_nodes'])} chunk(s) already pinned from matched code(s))",
+            flush=True,
+        )
     return "retrieve"
 
 
 def retrieve(state: ServingState) -> dict:
     rid = state["request_id"]
-    print(f"[{rid}] retrieving top-{RETRIEVE_TOP_K} chunks...", flush=True)
-    index = _build_index()
-    retriever = index.as_retriever(similarity_top_k=RETRIEVE_TOP_K)
-    nodes = retriever.retrieve(state["rewritten_question"])
-    print(f"[{rid}] retrieved {len(nodes)} chunk(s)", flush=True)
-    return {"retrieved_nodes": nodes, "retrieval_path": "vector"}
+    print(f"[{rid}] hybrid retrieval (dense + sparse, fused) top-{RETRIEVE_TOP_K}...", flush=True)
+    index = get_cached_index()
+    nodes = hybrid_retrieve(
+        state["rewritten_question"], index,
+        dense_top_k=RETRIEVE_TOP_K, sparse_top_k=RETRIEVE_TOP_K,
+    )
+    print(f"[{rid}] retrieved {len(nodes)} chunk(s) after fusion", flush=True)
+    return {"retrieved_nodes": nodes, "retrieval_path": "hybrid"}
 
 
 def rerank(state: ServingState) -> dict:
     rid = state["request_id"]
-    print(f"[{rid}] reranking to top-{RERANK_TOP_N}...", flush=True)
-    reranker = _get_reranker(RERANK_TOP_N)
-    reranked = reranker.postprocess_nodes(
-        state["retrieved_nodes"], query_str=state["rewritten_question"]
+    exact_nodes = state.get("exact_match_nodes") or []
+    exact_ids = {n.node.node_id for n in exact_nodes}
+    to_rerank = [n for n in state["retrieved_nodes"] if n.node.node_id not in exact_ids]
+    remaining_budget = max(RERANK_TOP_N - len(exact_nodes), 0)
+
+    reranked_rest: List[NodeWithScore] = []
+    if to_rerank and remaining_budget:
+        reranker = get_reranker(remaining_budget)          # <-- this line
+        reranked_rest = reranker.postprocess_nodes(to_rerank, query_str=state["rewritten_question"])
+
+    reranked = exact_nodes + reranked_rest
+    print(
+        f"[{rid}] reranked to {len(reranked)} chunk(s) "
+        f"({len(exact_nodes)} pinned exact-match + {len(reranked_rest)} from hybrid retrieval)",
+        flush=True,
     )
-    print(f"[{rid}] reranked to {len(reranked)} chunk(s)", flush=True)
     return {"reranked_nodes": reranked}
 
 
@@ -201,12 +202,8 @@ def generate(state: ServingState) -> dict:
     rid = state["request_id"]
     print(f"[{rid}] generating answer...", flush=True)
     llm = get_llm()
-    context = "\n\n".join(n.node.get_content() for n in state["reranked_nodes"])
-    prompt = (
-        "Answer the question using ONLY the context below. If the context "
-        "doesn't contain the answer, say so.\n\n"
-        f"Context:\n{context}\n\nQuestion: {state['question']}\n\nAnswer:"
-    )
+    context = build_numbered_context(state["reranked_nodes"])
+    prompt = GENERATE_PROMPT.format(context=context, question=state["question"])
     answer = str(llm.chat([ChatMessage(role="user", content=prompt)])).strip()
     print(f"[{rid}] answer generated ({len(answer)} chars)", flush=True)
     citations = [

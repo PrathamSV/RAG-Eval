@@ -27,7 +27,7 @@ from pathlib import Path
 from llama_index.core import Settings, SimpleDirectoryReader, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
 
-from common import configure_llamaindex_settings, get_vector_store
+from common import configure_llamaindex_settings, ensure_fulltext_index, get_vector_store
 from parsers import parse_error_reference, parse_sop
 
 configure_llamaindex_settings()
@@ -114,6 +114,9 @@ def main() -> None:
         f"{len(generic_nodes)} generic node(s) into pgvector table 'rag_chunks'.",
         flush=True,
     )
+    
+    print("Ensuring full-text search index exists on data_rag_chunks...", flush=True)
+    ensure_fulltext_index()
 
 
 if __name__ == "__main__":

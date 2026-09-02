@@ -59,6 +59,8 @@ class EvalRunRequest(BaseModel):
 @app.on_event("startup")
 def startup() -> None:
     db.init_schema()
+    from common import ensure_fulltext_index
+    ensure_fulltext_index()
 
 
 @app.post("/admin/truncate")

@@ -221,3 +221,4 @@ __marimo__/
 
 # Custom
 *.txt
+eval_exports/*  

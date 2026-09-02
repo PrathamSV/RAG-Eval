@@ -12,12 +12,14 @@ them is fine, since embeddings and generation never need to be the same
 model/vendor.
 """
 
+import json
+import re
 import os
 
 import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
-from llama_index.core import Settings
+from llama_index.core import Settings, VectorStoreIndex
 from llama_index.core.schema import NodeWithScore, TextNode
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.anthropic import Anthropic
@@ -84,6 +86,57 @@ def get_vector_store() -> PGVectorStore:
     )
 
 
+_cached_index: VectorStoreIndex | None = None
+
+
+def get_cached_index() -> VectorStoreIndex:
+    """Shared VectorStoreIndex, built once per process. Previously
+    graphs/serving_graph.py and graphs/eval_graph.py each kept a private
+    `_cached_index` global -- harmless if only one graph ever runs, but
+    api/main.py imports both into the same FastAPI process, so hitting
+    /query and /eval/run each built (and kept in memory) their own copy of
+    the HuggingFace embedding model. One cache here means one load,
+    shared by both."""
+    global _cached_index
+    if _cached_index is None:
+        configure_llamaindex_settings()
+        _cached_index = VectorStoreIndex.from_vector_store(get_vector_store())
+    return _cached_index
+
+
+_reranker_cache: dict[int, object] = {}
+
+
+def get_reranker(top_n: int):
+    """Shared SentenceTransformerRerank cache, keyed by top_n -- same
+    double-load issue as get_cached_index() above, this time for the
+    cross-encoder weights. Import is local so common.py doesn't force a
+    sentence-transformers dependency on callers that never rerank (e.g.
+    generate_testset.py, hybrid_retrieval.py)."""
+    from llama_index.core.postprocessor import SentenceTransformerRerank
+    if top_n not in _reranker_cache:
+        _reranker_cache[top_n] = SentenceTransformerRerank(
+            model="cross-encoder/ms-marco-MiniLM-L-6-v2", top_n=top_n
+        )
+    return _reranker_cache[top_n]
+
+
+def extract_json(text: str) -> dict | None:
+    """Pull the first {...} JSON object out of an LLM response and parse
+    it. Shared by eval/generate_testset.py (question/reference-answer
+    generation) and eval/metrics.py (judge scoring) -- both did the
+    identical regex-then-json.loads independently. Returns None (rather
+    than raising) on any parse failure, since a malformed judge/generator
+    response should be skipped by the caller, not crash the run."""
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        return None
+    try:
+        return json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+
+
 def get_pg_dsn() -> str:
     """Plain psycopg2 DSN for the eval tables. The chunks themselves live in
     the pgvector-managed table (data_rag_chunks, created by PGVectorStore);
@@ -146,3 +199,74 @@ def fetch_nodes_by_error_code(code: str) -> list[NodeWithScore]:
         )
         for row in rows
     ]
+
+
+def ensure_fulltext_index() -> bool:
+    """Adds a generated tsvector column + GIN index to the pgvector-managed
+    data_rag_chunks table, for hybrid_retrieval.py's sparse search. Safe to
+    call repeatedly (checks to_regclass / column existence first). No-ops
+    (returns False) if data_rag_chunks doesn't exist yet -- that just means
+    nothing's been ingested, not an error.
+
+    to_tsvector(regconfig, text) -- the two-argument form used below -- is
+    IMMUTABLE, unlike the one-argument to_tsvector(text) which reads the
+    default_text_search_config GUC and is only STABLE. Passing 'english'
+    explicitly is what makes this legal inside a STORED generated column.
+    """
+    conn = psycopg2.connect(get_pg_dsn())
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('data_rag_chunks')")
+            if cur.fetchone()[0] is None:
+                return False
+
+            cur.execute(
+                """
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'data_rag_chunks' AND column_name = 'text_search'
+                """
+            )
+            if cur.fetchone() is None:
+                cur.execute(
+                    """
+                    ALTER TABLE data_rag_chunks
+                    ADD COLUMN text_search tsvector
+                    GENERATED ALWAYS AS (to_tsvector('english', text)) STORED
+                    """
+                )
+                cur.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_data_rag_chunks_text_search
+                    ON data_rag_chunks USING GIN (text_search)
+                    """
+                )
+                conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+GENERATE_PROMPT = """Answer the question using ONLY the passages below (numbered [1], [2], etc.). Some questions are answerable from a single passage; others require connecting specific facts stated in two or more different passages -- read all of them before deciding anything is missing.
+
+Rules:
+1. You may state a fact only if it is explicitly written in one of the passages, or is a direct, literal combination of facts each explicitly stated in the passages (e.g. passage [1] says X causes A, passage [2] says X causes B -- you may say X causes both A and B). Never add a reason, mechanism, or explanation that isn't itself written in the passages, even if it sounds plausible.
+2. If the passages fully answer the question, answer it directly and completely.
+3. If the passages answer part of the question but are missing one specific piece, answer the part that's supported and say exactly what's missing -- don't refuse the whole answer over one missing detail when the rest is solidly grounded.
+4. If the passages don't contain enough to answer any part of the question, say so plainly. Do not fill the gap with outside knowledge or a plausible-sounding guess -- an honest "the passages don't cover this" always beats a confident but unsupported claim.
+5. Before finalizing, check every claim you're about to make against the passages. If you can't point to where a specific claim comes from, cut it or flag it as unsupported rather than stating it as fact.
+
+Passages:
+{context}
+
+Question: {question}
+
+Answer:"""
+
+def build_numbered_context(nodes) -> str:
+    """Numbers retrieved/reranked nodes as [1], [2], ... for GENERATE_PROMPT,
+    so the model can refer to and cross-reference specific passages instead
+    of treating the context as one undifferentiated blob -- this is what
+    makes the cross-passage combination rule in GENERATE_PROMPT usable."""
+    return "\n\n".join(
+        f"[{i}] {n.node.get_content()}" for i, n in enumerate(nodes, start=1)
+    )

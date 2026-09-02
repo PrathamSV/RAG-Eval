@@ -31,13 +31,18 @@ from llama_index.core.schema import NodeWithScore
 import db
 from common import (
     GENERATION_MODEL,
+    GENERATE_PROMPT,
+    build_numbered_context,
     configure_llamaindex_settings,
     fetch_nodes_by_error_code,
+    get_cached_index,
     get_llm,
+    get_reranker,
     get_vector_store,
 )
+from hybrid_retrieval import hybrid_retrieve
 from eval.metrics import generation_metrics, retrieval_metrics
-from parsers import normalize_error_code
+from parsers import normalize_error_codes
 
 RETRIEVE_TOP_K = 10
 
@@ -55,8 +60,8 @@ class EvalQueryState(TypedDict, total=False):
     use_reranker: bool
     rerank_top_n: int
     top_k: int
-    detected_code: Optional[str]
-    retrieval_path: str  # "exact_match" | "vector"
+    detected_codes: List[str]
+    retrieval_path: str  # "exact_match" | "exact_match+hybrid" | "hybrid"
     retrieved_nodes: List[NodeWithScore]
     retrieved_ids: List[str]
     latency_ms: float
@@ -66,96 +71,83 @@ class EvalQueryState(TypedDict, total=False):
     combined: dict
 
 
-_cached_index: VectorStoreIndex | None = None
-
-
-def _index() -> VectorStoreIndex:
-    """Build the index once and cache it at module level -- retrieve() is
-    called once per query in run_eval()'s loop, and rebuilding
-    VectorStoreIndex from scratch each time reconstructs the embedding
-    model (HuggingFaceEmbedding), which reloads its weights off disk on
-    every call. Caching means the weights load once per process instead
-    of once per query."""
-    global _cached_index
-    if _cached_index is None:
-        configure_llamaindex_settings()
-        _cached_index = VectorStoreIndex.from_vector_store(get_vector_store())
-    return _cached_index
-
-
-_reranker_cache: dict[int, SentenceTransformerRerank] = {}
-
-
-def _get_reranker(top_n: int) -> SentenceTransformerRerank:
-    """Cache SentenceTransformerRerank instances by top_n -- constructing
-    one loads the cross-encoder weights from disk, and retrieve() runs
-    once per query in run_eval()'s loop, so building a fresh instance per
-    query reloads the weights every time (same issue as the embedding
-    model before it was cached in _index())."""
-    if top_n not in _reranker_cache:
-        _reranker_cache[top_n] = SentenceTransformerRerank(
-            model="cross-encoder/ms-marco-MiniLM-L-6-v2", top_n=top_n
-        )
-    return _reranker_cache[top_n]
-
-
 def retrieve(state: EvalQueryState) -> dict:
-    """Exact error-code match first (deterministic metadata lookup,
-    bypassing both vector search and the reranker -- see
-    fetch_nodes_by_error_code's docstring for why embeddings are
-    unreliable on opaque alphanumeric codes specifically). Only falls
-    through to normal vector retrieval when no code is detected, or the
-    detected code is well-formed but not actually in the ingested catalog.
-    """
     qid = state["query_id"]
     start = time.perf_counter()
 
-    code = normalize_error_code(state["question"])
-    if code:
-        print(f"  [query {qid}] detected error code {code} -- exact-match lookup", flush=True)
-        nodes = fetch_nodes_by_error_code(code)
-        if nodes:
+    codes = normalize_error_codes(state["question"])
+    exact_nodes: List[NodeWithScore] = []
+    missing_codes: List[str] = []
+
+    if codes:
+        print(f"  [query {qid}] detected error code(s) {codes} -- exact-match lookup", flush=True)
+        seen_ids = set()
+        for code in codes:
+            nodes = fetch_nodes_by_error_code(code)
+            if nodes:
+                for n in nodes:
+                    if n.node.node_id not in seen_ids:
+                        exact_nodes.append(n)
+                        seen_ids.add(n.node.node_id)
+            else:
+                missing_codes.append(code)
+
+        if exact_nodes and not missing_codes:
             latency_ms = (time.perf_counter() - start) * 1000
-            ids = [n.node.node_id for n in nodes]
+            ids = [n.node.node_id for n in exact_nodes]
             print(
-                f"  [query {qid}] exact-match lookup found {len(ids)} chunk(s) for {code} "
+                f"  [query {qid}] exact-match lookup found {len(ids)} chunk(s) for {codes} "
                 f"in {latency_ms:.0f}ms",
                 flush=True,
             )
             return {
-                "retrieved_nodes": nodes,
+                "retrieved_nodes": exact_nodes,
                 "retrieved_ids": ids,
                 "latency_ms": latency_ms,
-                "detected_code": code,
+                "detected_codes": codes,
                 "retrieval_path": "exact_match",
             }
-        print(
-            f"  [query {qid}] '{code}' is code-shaped but matched no chunks in the catalog "
-            f"-- falling back to vector search",
-            flush=True,
-        )
+        if missing_codes:
+            print(
+                f"  [query {qid}] code(s) {missing_codes} code-shaped but matched no chunks in "
+                f"the catalog -- falling back to hybrid retrieval to fill the gap "
+                f"({len(exact_nodes)} chunk(s) already pinned from matched code(s))",
+                flush=True,
+            )
 
     top_k = state.get("top_k", RETRIEVE_TOP_K)
-    print(f"  [query {qid}] retrieving top-{top_k} chunks...", flush=True)
-    index = _index()
-    retriever = index.as_retriever(similarity_top_k=top_k)
-    nodes = retriever.retrieve(state["question"])
+    print(f"  [query {qid}] hybrid retrieval (dense + sparse, fused) top-{top_k}...", flush=True)
+    index = get_cached_index()
+    hybrid_nodes = hybrid_retrieve(state["question"], index, dense_top_k=top_k, sparse_top_k=top_k)
+    hybrid_nodes = hybrid_retrieve(state["question"], index, dense_top_k=top_k, sparse_top_k=top_k)
+    exact_ids = {n.node.node_id for n in exact_nodes}
+    hybrid_nodes = [n for n in hybrid_nodes if n.node.node_id not in exact_ids]
 
     if state.get("use_reranker"):
         rerank_top_n = state.get("rerank_top_n", 4)
-        print(f"  [query {qid}] reranking to top-{rerank_top_n}...", flush=True)
-        reranker = _get_reranker(rerank_top_n)
-        nodes = reranker.postprocess_nodes(nodes, query_str=state["question"])
+        remaining_budget = max(rerank_top_n - len(exact_nodes), 0)
+        print(
+            f"  [query {qid}] reranking to top-{remaining_budget} "
+            f"(+{len(exact_nodes)} pinned exact-match)...", flush=True
+        )
+        reranked_rest: List[NodeWithScore] = []
+        if hybrid_nodes and remaining_budget:
+            reranker = get_reranker(remaining_budget)
+            reranked_rest = reranker.postprocess_nodes(hybrid_nodes, query_str=state["question"])
+        nodes = exact_nodes + reranked_rest
+    else:
+        nodes = exact_nodes + hybrid_nodes
 
     latency_ms = (time.perf_counter() - start) * 1000
     ids = [n.node.node_id for n in nodes]
-    print(f"  [query {qid}] retrieved {len(ids)} chunk(s) in {latency_ms:.0f}ms", flush=True)
+    path = "exact_match+hybrid" if exact_nodes else "hybrid"
+    print(f"  [query {qid}] retrieved {len(ids)} chunk(s) after fusion in {latency_ms:.0f}ms", flush=True)
     return {
         "retrieved_nodes": nodes,
         "retrieved_ids": ids,
         "latency_ms": latency_ms,
-        "detected_code": code,
-        "retrieval_path": "vector",
+        "detected_codes": codes,
+        "retrieval_path": path,
     }
 
 
@@ -169,16 +161,11 @@ def generate(state: EvalQueryState) -> dict:
     qid = state["query_id"]
     print(f"  [query {qid}] generating answer ({GENERATION_MODEL})...", flush=True)
     llm = get_llm()
-    context = "\n\n".join(n.node.get_content() for n in state["retrieved_nodes"])
-    prompt = (
-        "Answer the question using ONLY the context below. If the context "
-        "doesn't contain the answer, say so.\n\n"
-        f"Context:\n{context}\n\nQuestion: {state['question']}\n\nAnswer:"
-    )
+    context = build_numbered_context(state["retrieved_nodes"])
+    prompt = GENERATE_PROMPT.format(context=context, question=state["question"])
     answer = str(llm.chat([ChatMessage(role="user", content=prompt)])).strip()
     print(f"  [query {qid}] answer generated ({len(answer)} chars)", flush=True)
     return {"answer": answer}
-
 
 def compute_generation_metrics(state: EvalQueryState) -> dict:
     qid = state["query_id"]
@@ -289,11 +276,12 @@ def run_eval(
         raise SystemExit("No eval queries found — run eval/generate_testset.py first.")
 
     config = {
-        "embedding_model": "gemini-embedding-001",
+        "embedding_model": "bge-small-en-v1.5",
         "generation_model": GENERATION_MODEL,
         "use_reranker": use_reranker,
         "rerank_top_n": rerank_top_n,
         "top_k": top_k,
+        "retrieval_method": "hybrid_dense_sparse_rrf",
     }
     run_id = db.create_eval_run(config)
     graph = get_eval_query_graph()

@@ -22,9 +22,7 @@ Run:
 """
 
 import argparse
-import json
 import random
-import re
 
 import psycopg2
 import psycopg2.extras
@@ -32,7 +30,7 @@ from llama_index.core.llms import ChatMessage
 from llama_index.llms.anthropic import Anthropic
 
 import db
-from common import JUDGE_MODEL, get_llm, get_pg_dsn
+from common import JUDGE_MODEL, extract_json, get_llm, get_pg_dsn
 
 SINGLE_HOP_PROMPT = """Read the following passage and write ONE question that can be
 answered using ONLY this passage. The question should be specific enough that
@@ -221,19 +219,9 @@ def fetch_semantic_pair(anchor_id: int, exclude_ids: set) -> dict | None:
 
 
 def _ask_json(llm: Anthropic, prompt: str) -> dict | None:
-    """Send `prompt`, parse the first {...} JSON object out of the reply.
-    Returns None (rather than raising) on any parse failure, since a
-    malformed judge/generator response should be skipped, not crash the
-    whole run."""
+    """Send `prompt`, parse the first {...} JSON object out of the reply."""
     response = llm.chat([ChatMessage(role="user", content=prompt)])
-    text = str(response)
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if not match:
-        return None
-    try:
-        return json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return None
+    return extract_json(str(response))
 
 
 def generate_single_hop(chunk_text: str, llm: Anthropic) -> dict | None:

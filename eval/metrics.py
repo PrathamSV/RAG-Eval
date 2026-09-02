@@ -4,8 +4,6 @@ from ranked chunk ids vs. a gold set, plus LLM-judge metrics (faithfulness,
 answer relevance, answer correctness) that score generation quality.
 """
 
-import json
-import re
 from typing import Sequence
 import numpy as np
 from scipy import stats as scipy_stats
@@ -13,7 +11,7 @@ from scipy import stats as scipy_stats
 from llama_index.core.llms import ChatMessage
 from llama_index.llms.anthropic import Anthropic
 
-from common import JUDGE_MODEL, get_llm
+from common import JUDGE_MODEL, extract_json, get_llm
 
 _judge_llm = None
 
@@ -78,28 +76,16 @@ def retrieval_metrics(retrieved_ids: Sequence[str], gold_ids: Sequence[str]) -> 
 
 
 def _judge_score(prompt: str, label: str) -> float:
-    """Ask the judge LLM for a JSON object {"score": 0-1, "reason": "..."}
-    and return the score. Defaults to 0.0 only on a parse failure (the judge
-    responded but not in the expected format) so a flaky judge response
-    degrades a metric rather than crashing an eval run — a genuine call
-    failure (auth, rate limit, network) still propagates as an exception
-    rather than being silently scored 0.0.
-
-    `label` is just for progress output — this is the actual network call
-    in the metrics pipeline, so it's the spot most likely to look "stuck"
-    if the judge model is slow or rate-limited."""
     print(f"    judging {label}...", flush=True)
     llm = _get_judge_llm()
     response = llm.chat([ChatMessage(role="user", content=prompt)])
-    text = str(response)
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if not match:
+    data = extract_json(str(response))
+    if data is None:
         print(f"    judging {label}: no parseable JSON in judge response — scoring 0.0", flush=True)
         return 0.0
     try:
-        data = json.loads(match.group(0))
         score = float(data.get("score", 0.0))
-    except (ValueError, json.JSONDecodeError, TypeError):
+    except (ValueError, TypeError):
         print(f"    judging {label}: malformed JSON in judge response — scoring 0.0", flush=True)
         return 0.0
     print(f"    judging {label}: {score}", flush=True)
