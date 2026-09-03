@@ -265,7 +265,7 @@ def generate(state: ServingState) -> dict:
             "section": n.node.metadata.get("section"),
             "doc_type": n.node.metadata.get("doc_type"),
             "expanded": n.node.metadata.get("expanded", False),
-            "score": n.score,
+            "score": float(n.score) if n.score is not None else None,
             "snippet": n.node.get_content()[:200],
         }
         for n in state["expanded_nodes"]

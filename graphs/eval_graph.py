@@ -75,6 +75,7 @@ class EvalQueryState(TypedDict, total=False):
     retrieval_scores: dict
     answer: str
     generation_scores: dict
+    judge_details: Optional[dict]
     combined: dict
 
 
@@ -223,11 +224,12 @@ def compute_generation_metrics(state: EvalQueryState) -> dict:
     qid = state["query_id"]
     print(f"  [query {qid}] scoring faithfulness / relevance / correctness...", flush=True)
     context_chunks = [n.node.get_content() for n in state["expanded_nodes"]]
-    scores = generation_metrics(
+    result = generation_metrics(
         state["question"], state["answer"], context_chunks, state.get("reference_answer")
     )
-    print(f"  [query {qid}] generation metrics: {scores}", flush=True)
-    return {"generation_scores": scores}
+    judge_details = result.pop("judge_details", None)
+    print(f"  [query {qid}] generation metrics: {result}", flush=True)
+    return {"generation_scores": result, "judge_details": judge_details}
 
 
 def combine(state: EvalQueryState) -> dict:
@@ -282,7 +284,7 @@ def _write_details_file(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "run_id": run_id,
-        "schema_version": 2,  # distinguishes from pre-expansion exports on disk
+        "schema_version": 3,  # 3: adds per-query judge_diagnostics (reason/parse_failed per metric)
         "config": config,
         "n_queries": len(records),
         "queries": records,
@@ -400,6 +402,13 @@ def run_eval(
                         "retrieved_chunk_ids": result["retrieved_ids"],
                         "latency_ms": result["latency_ms"],
                         "metrics": result["combined"],
+                        # Per-metric {reason, parse_failed} from the judge LLM -- lets a
+                        # faithfulness/answer_relevance/answer_correctness score of 0.0 be
+                        # triaged as "the judge genuinely scored it 0" vs. "the judge's
+                        # response didn't parse and silently defaulted to 0.0" (see
+                        # eval/metrics.py::_judge_score). None for answer_correctness when
+                        # no reference_answer was available to grade against.
+                        "judge_diagnostics": result.get("judge_details"),
                         "expansion_applied": bool(result.get("expansion_map")),
                         "expanded_error_codes": list(result.get("expansion_map", {}).keys()),
                         "expanded_chunk_ids": [

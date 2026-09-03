@@ -75,28 +75,42 @@ def retrieval_metrics(retrieved_ids: Sequence[str], gold_ids: Sequence[str]) -> 
 # ---------------------------------------------------------------------------
 
 
-def _judge_score(prompt: str, label: str) -> float:
+def _judge_score(prompt: str, label: str) -> dict:
+    """Send `prompt` to the judge LLM and parse a {"score":.., "reason":..}
+    JSON object out of the reply.
+
+    Returns {"score": float, "reason": str | None, "parse_failed": bool}.
+    `parse_failed=True` covers both failure modes below (no parseable JSON at
+    all, or a non-numeric "score" field) -- in either case `score` falls back
+    to 0.0, but that 0.0 is a symptom of a broken judge call, not necessarily
+    a genuine "entirely unsupported" / "fully incorrect" verdict. Before this
+    field existed, the two were indistinguishable in stored results: a
+    faithfulness=0.0 in eval_results/save_details could mean either "the
+    judge said so" or "the judge's response didn't parse." Callers that only
+    need the number (faithfulness/answer_relevance/answer_correctness below)
+    discard reason/parse_failed; generation_metrics keeps them specifically
+    so save_details can carry the distinction (see EvalQueryState's
+    judge_details / eval_graph.py's compute_generation_metrics)."""
     print(f"    judging {label}...", flush=True)
     llm = _get_judge_llm()
     response = llm.chat([ChatMessage(role="user", content=prompt)])
     data = extract_json(str(response))
     if data is None:
         print(f"    judging {label}: no parseable JSON in judge response — scoring 0.0", flush=True)
-        return 0.0
+        return {"score": 0.0, "reason": None, "parse_failed": True}
     try:
         score = float(data.get("score", 0.0))
     except (ValueError, TypeError):
         print(f"    judging {label}: malformed JSON in judge response — scoring 0.0", flush=True)
-        return 0.0
-    print(f"    judging {label}: {score}", flush=True)
-    return score
+        return {"score": 0.0, "reason": data.get("reason"), "parse_failed": True}
+    reason = data.get("reason")
+    print(f"    judging {label}: {score} ({reason!r})", flush=True)
+    return {"score": score, "reason": reason, "parse_failed": False}
 
 
-def faithfulness(answer: str, context_chunks: Sequence[str]) -> float:
-    """Does the answer only make claims supported by the retrieved context?
-    (a.k.a. hallucination check)."""
+def _faithfulness_prompt(answer: str, context_chunks: Sequence[str]) -> str:
     context = "\n---\n".join(context_chunks)
-    prompt = f"""You are grading whether an ANSWER is faithful to the given CONTEXT
+    return f"""You are grading whether an ANSWER is faithful to the given CONTEXT
 (i.e. every claim in the answer is supported by the context, with no
 hallucinated facts).
 
@@ -108,13 +122,10 @@ ANSWER:
 
 Respond with ONLY a JSON object: {{"score": <0.0-1.0>, "reason": "<one sentence>"}}
 where 1.0 means fully faithful and 0.0 means entirely unsupported."""
-    return _judge_score(prompt, label="faithfulness")
 
 
-def answer_relevance(question: str, answer: str) -> float:
-    """Does the answer actually address the question asked (independent of
-    whether it's factually correct)?"""
-    prompt = f"""You are grading whether an ANSWER is relevant to the QUESTION asked.
+def _answer_relevance_prompt(question: str, answer: str) -> str:
+    return f"""You are grading whether an ANSWER is relevant to the QUESTION asked.
 
 QUESTION:
 {question}
@@ -124,14 +135,10 @@ ANSWER:
 
 Respond with ONLY a JSON object: {{"score": <0.0-1.0>, "reason": "<one sentence>"}}
 where 1.0 means directly and fully relevant, 0.0 means off-topic."""
-    return _judge_score(prompt, label="answer_relevance")
 
 
-def answer_correctness(answer: str, reference_answer: str) -> float:
-    """Does the answer match the reference answer's factual content?"""
-    if not reference_answer:
-        return 0.0
-    prompt = f"""You are grading whether a CANDIDATE answer is factually
+def _answer_correctness_prompt(answer: str, reference_answer: str) -> str:
+    return f"""You are grading whether a CANDIDATE answer is factually
 correct compared to a REFERENCE answer.
 
 REFERENCE ANSWER:
@@ -142,20 +149,70 @@ CANDIDATE ANSWER:
 
 Respond with ONLY a JSON object: {{"score": <0.0-1.0>, "reason": "<one sentence>"}}
 where 1.0 means factually equivalent, 0.0 means contradicts or misses the key fact."""
-    return _judge_score(prompt, label="answer_correctness")
+
+
+def faithfulness(answer: str, context_chunks: Sequence[str]) -> float:
+    """Does the answer only make claims supported by the retrieved context?
+    (a.k.a. hallucination check)."""
+    return _judge_score(_faithfulness_prompt(answer, context_chunks), label="faithfulness")["score"]
+
+
+def answer_relevance(question: str, answer: str) -> float:
+    """Does the answer actually address the question asked (independent of
+    whether it's factually correct)?"""
+    return _judge_score(_answer_relevance_prompt(question, answer), label="answer_relevance")["score"]
+
+
+def answer_correctness(answer: str, reference_answer: str) -> float:
+    """Does the answer match the reference answer's factual content?"""
+    if not reference_answer:
+        return 0.0
+    return _judge_score(_answer_correctness_prompt(answer, reference_answer), label="answer_correctness")["score"]
 
 
 def generation_metrics(
     question: str, answer: str, context_chunks: Sequence[str], reference_answer: str | None = None
 ) -> dict:
-    return {
-        "faithfulness": faithfulness(answer, context_chunks),
-        "answer_relevance": answer_relevance(question, answer),
-        "answer_correctness": (
-            answer_correctness(answer, reference_answer) if reference_answer else None
-        ),
-    }
+    """As before, plus a "judge_details" key: per-metric {reason,
+    parse_failed}, so a 0.0 score can be triaged as a genuine judge verdict
+    vs. a silently-defaulted parse failure (see _judge_score's docstring).
+    Each metric still costs exactly one LLM call -- judge_details is
+    populated from the same _judge_score call that produces the score, not
+    an extra round-trip. compute_generation_metrics (eval_graph.py) pops
+    "judge_details" back out before it reaches eval_results/db, keeping the
+    numeric metrics dict unchanged for every existing reader; it only flows
+    into the save_details JSON export."""
+    faithfulness_result = _judge_score(_faithfulness_prompt(answer, context_chunks), label="faithfulness")
+    relevance_result = _judge_score(_answer_relevance_prompt(question, answer), label="answer_relevance")
+    correctness_result = (
+        _judge_score(_answer_correctness_prompt(answer, reference_answer), label="answer_correctness")
+        if reference_answer
+        else None
+    )
 
+    return {
+        "faithfulness": faithfulness_result["score"],
+        "answer_relevance": relevance_result["score"],
+        "answer_correctness": correctness_result["score"] if correctness_result else None,
+        "judge_details": {
+            "faithfulness": {
+                "reason": faithfulness_result["reason"],
+                "parse_failed": faithfulness_result["parse_failed"],
+            },
+            "answer_relevance": {
+                "reason": relevance_result["reason"],
+                "parse_failed": relevance_result["parse_failed"],
+            },
+            "answer_correctness": (
+                {
+                    "reason": correctness_result["reason"],
+                    "parse_failed": correctness_result["parse_failed"],
+                }
+                if correctness_result
+                else None
+            ),
+        },
+    }
 
 # ---------------------------------------------------------------------------
 # Statistical rigor: is a metric delta real, and do retrieval metrics
