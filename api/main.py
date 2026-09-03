@@ -46,6 +46,9 @@ class EvalRunRequest(BaseModel):
     use_reranker: bool = True
     rerank_top_n: int = 4
     top_k: int = 10
+    # Windowed expansion + per-SOP labeling. See sop_expansion_and_labeling_dev_spec.md.
+    expansion_enabled: bool = True
+    expansion_top_m: int = 1
     # When True, also writes a JSON file with each query's question,
     # reference answer, generated answer, gold/retrieved chunk ids, and
     # every metric -- for manual inspection alongside the DB-backed run.
@@ -112,6 +115,8 @@ def eval_run(req: EvalRunRequest) -> dict:
             use_reranker=req.use_reranker,
             rerank_top_n=req.rerank_top_n,
             top_k=req.top_k,
+            expansion_enabled=req.expansion_enabled,
+            expansion_top_m=req.expansion_top_m,
             save_details=req.save_details,
             output_path=req.output_path,
         )

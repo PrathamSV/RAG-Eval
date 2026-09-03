@@ -35,6 +35,8 @@ python -m eval.generate_testset --n 20 --multi-hop-fraction 0.3 --semantic-fract
 # or: POST /eval/generate-testset {"n": 20, "multi_hop_fraction": 0.5, "semantic_fraction": 0.5}
 python -c "from graphs.eval_graph import run_eval; print(run_eval(use_reranker=False))"
 python -c "from graphs.eval_graph import run_eval; print(run_eval(use_reranker=True))"
+python -c "from graphs.eval_graph import run_eval; print(run_eval(expansion_enabled=True, expansion_top_m=1))"
+# or: POST /eval/run {"use_reranker": true, "expansion_enabled": true, "expansion_top_m": 1}
 ```
 
 `generate_testset` builds three kinds of questions: single-hop (one gold
@@ -69,7 +71,7 @@ controls adjacent vs semantic mix within the multi-hop share.
 
 rewrite_query → retrieve → rerank → check_sufficiency
 ├─(context weak, attempts left)→ rewrite_query (loop)
-└─(sufficient, or out of attempts)→ generate → faithfulness_check → END
+└─(sufficient, or out of attempts)→ expand_context → generate → faithfulness_check → END
 
 The conditional edge is genuine corrective RAG: if the reranked top score is
 below `SUFFICIENCY_THRESHOLD`, the question gets rewritten and retried

@@ -261,10 +261,11 @@ def parse_sop(path: str, error_code: str | None = None) -> list:
                 "error_code": error_code,
                 "doc_type": "sop",
                 "section": n.metadata.get("header_path", "/"),
+                "chunk_index": i,          # explicit ingest-time document order
                 "source": Path(path).name,
             },
         )
-        for n in raw_nodes
+        for i, n in enumerate(raw_nodes)
     ]
 
 

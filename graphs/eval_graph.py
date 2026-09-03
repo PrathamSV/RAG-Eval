@@ -20,7 +20,7 @@ import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional, TypedDict
+from typing import Dict, List, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
 from llama_index.core.llms import ChatMessage
@@ -28,15 +28,19 @@ from llama_index.core.schema import NodeWithScore
 
 import db
 from common import (
+    EXPANSION_CHAR_CAP,
+    WINDOWED_EXPANSION_TOP_M,
     GENERATION_MODEL,
     GENERATE_PROMPT,
     build_numbered_context,
     configure_llamaindex_settings,
+    expand_sop_context,
     fetch_nodes_by_error_code,
     get_cached_index,
     get_llm,
     get_reranker,
     get_vector_store,
+    select_topm_error_codes,
 )
 from hybrid_retrieval import hybrid_retrieve
 from eval.metrics import generation_metrics, retrieval_metrics
@@ -60,8 +64,13 @@ class EvalQueryState(TypedDict, total=False):
     top_k: int
     detected_codes: List[str]
     retrieval_path: str  # "exact_match" | "exact_match+hybrid" | "hybrid"
+    exact_nodes_by_code: Dict[str, List[NodeWithScore]]
     retrieved_nodes: List[NodeWithScore]
     retrieved_ids: List[str]
+    expanded_nodes: List[NodeWithScore]
+    expansion_map: Dict[str, List[str]]
+    expansion_enabled: bool
+    expansion_top_m: int
     latency_ms: float
     retrieval_scores: dict
     answer: str
@@ -76,6 +85,7 @@ def retrieve(state: EvalQueryState) -> dict:
     codes = normalize_error_codes(state["question"])
     exact_nodes: List[NodeWithScore] = []
     missing_codes: List[str] = []
+    exact_nodes_by_code: Dict[str, List[NodeWithScore]] = {}
 
     if codes:
         print(f"  [query {qid}] detected error code(s) {codes} -- exact-match lookup", flush=True)
@@ -83,6 +93,7 @@ def retrieve(state: EvalQueryState) -> dict:
         for code in codes:
             nodes = fetch_nodes_by_error_code(code)
             if nodes:
+                exact_nodes_by_code[code] = nodes
                 for n in nodes:
                     if n.node.node_id not in seen_ids:
                         exact_nodes.append(n)
@@ -104,6 +115,7 @@ def retrieve(state: EvalQueryState) -> dict:
                 "latency_ms": latency_ms,
                 "detected_codes": codes,
                 "retrieval_path": "exact_match",
+                "exact_nodes_by_code": exact_nodes_by_code,
             }
         if missing_codes:
             print(
@@ -145,7 +157,50 @@ def retrieve(state: EvalQueryState) -> dict:
         "latency_ms": latency_ms,
         "detected_codes": codes,
         "retrieval_path": path,
+        "exact_nodes_by_code": exact_nodes_by_code,
     }
+
+
+def expand_context(state: EvalQueryState) -> dict:
+    qid = state["query_id"]
+
+    if not state.get("expansion_enabled", True):
+        return {"expanded_nodes": state["retrieved_nodes"], "expansion_map": {}}
+
+    exact_by_code = state.get("exact_nodes_by_code", {})
+    matched_codes = [c for c in state.get("detected_codes", []) if exact_by_code.get(c)]
+
+    if matched_codes:
+        anchor_groups = {c: exact_by_code[c] for c in matched_codes}
+        known_pools = {c: exact_by_code[c] for c in matched_codes}  # already complete + ordered
+        trigger = "exact_match"
+    else:
+        top_m = state.get("expansion_top_m", WINDOWED_EXPANSION_TOP_M)
+        top_codes = select_topm_error_codes(state["retrieved_nodes"], top_m)
+        if not top_codes:
+            print(f"  [query {qid}] expand_context: no error-code-tagged chunks -- no-op", flush=True)
+            return {"expanded_nodes": state["retrieved_nodes"], "expansion_map": {}}
+        anchor_groups = {}
+        for n in state["retrieved_nodes"]:
+            code = n.node.metadata.get("error_code")
+            if code in top_codes:
+                anchor_groups.setdefault(code, []).append(n)
+        known_pools = {}
+        trigger = "topm_fallback"
+
+    expanded, expansion_map = expand_sop_context(anchor_groups, known_pools, EXPANSION_CHAR_CAP)
+
+    matched_ids = {n.node.node_id for group in anchor_groups.values() for n in group}
+    passthrough = [
+        n for n in state["retrieved_nodes"]
+        if n.node.node_id not in matched_ids and n.node.metadata.get("error_code") not in anchor_groups
+    ]
+
+    print(
+        f"  [query {qid}] expand_context ({trigger}): {len(expansion_map)} code(s), "
+        f"{sum(len(v) for v in expansion_map.values())} section(s) total", flush=True,
+    )
+    return {"expanded_nodes": passthrough + expanded, "expansion_map": expansion_map}
 
 
 def compute_retrieval_metrics(state: EvalQueryState) -> dict:
@@ -158,7 +213,7 @@ def generate(state: EvalQueryState) -> dict:
     qid = state["query_id"]
     print(f"  [query {qid}] generating answer ({GENERATION_MODEL})...", flush=True)
     llm = get_llm()
-    context = build_numbered_context(state["retrieved_nodes"])
+    context = build_numbered_context(state["expanded_nodes"])
     prompt = GENERATE_PROMPT.format(context=context, question=state["question"])
     answer = str(llm.chat([ChatMessage(role="user", content=prompt)])).strip()
     print(f"  [query {qid}] answer generated ({len(answer)} chars)", flush=True)
@@ -167,7 +222,7 @@ def generate(state: EvalQueryState) -> dict:
 def compute_generation_metrics(state: EvalQueryState) -> dict:
     qid = state["query_id"]
     print(f"  [query {qid}] scoring faithfulness / relevance / correctness...", flush=True)
-    context_chunks = [n.node.get_content() for n in state["retrieved_nodes"]]
+    context_chunks = [n.node.get_content() for n in state["expanded_nodes"]]
     scores = generation_metrics(
         state["question"], state["answer"], context_chunks, state.get("reference_answer")
     )
@@ -183,20 +238,17 @@ def build_eval_query_graph():
     graph = StateGraph(EvalQueryState)
     graph.add_node("retrieve", retrieve)
     graph.add_node("compute_retrieval_metrics", compute_retrieval_metrics)
+    graph.add_node("expand_context", expand_context)
     graph.add_node("generate", generate)
     graph.add_node("compute_generation_metrics", compute_generation_metrics)
-    # defer=True: the retrieval-metrics branch is 1 hop (retrieve ->
-    # compute_retrieval_metrics) while the generation branch is 2 hops
-    # (retrieve -> generate -> compute_generation_metrics). Without `defer`,
-    # LangGraph fires `combine` as soon as the SHORT branch finishes, before
-    # generation_scores exists -> KeyError. `defer=True` holds this node
-    # until every pending branch in the step has actually completed.
     graph.add_node("combine", combine, defer=True)
 
     graph.set_entry_point("retrieve")
-    # fan-out: retrieval metrics and generation both branch off `retrieve`
+    # fan-out: retrieval metrics and generation (now via expand_context) both
+    # branch off `retrieve`
     graph.add_edge("retrieve", "compute_retrieval_metrics")
-    graph.add_edge("retrieve", "generate")
+    graph.add_edge("retrieve", "expand_context")
+    graph.add_edge("expand_context", "generate")
     graph.add_edge("generate", "compute_generation_metrics")
     # fan-in: combine only runs once both branches have finished
     graph.add_edge("compute_retrieval_metrics", "combine")
@@ -230,6 +282,7 @@ def _write_details_file(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "run_id": run_id,
+        "schema_version": 2,  # distinguishes from pre-expansion exports on disk
         "config": config,
         "n_queries": len(records),
         "queries": records,
@@ -242,6 +295,8 @@ def run_eval(
     use_reranker: bool = True,
     rerank_top_n: int = 4,
     top_k: int = RETRIEVE_TOP_K,
+    expansion_enabled: bool = True,
+    expansion_top_m: int = WINDOWED_EXPANSION_TOP_M,
     save_details: bool = False,
     output_path: Optional[str] = None,
 ) -> dict:
@@ -278,6 +333,9 @@ def run_eval(
         "use_reranker": use_reranker,
         "rerank_top_n": rerank_top_n,
         "top_k": top_k,
+        "expansion_enabled": expansion_enabled,
+        "expansion_top_m": expansion_top_m,
+        "expansion_char_cap": EXPANSION_CHAR_CAP,
         "retrieval_method": "hybrid_dense_sparse_rrf",
     }
     run_id = db.create_eval_run(config)
@@ -311,6 +369,8 @@ def run_eval(
                         "use_reranker": use_reranker,
                         "rerank_top_n": rerank_top_n,
                         "top_k": top_k,
+                        "expansion_enabled": expansion_enabled,
+                        "expansion_top_m": expansion_top_m,
                     }
                 )
                 db.insert_eval_result(
@@ -340,6 +400,11 @@ def run_eval(
                         "retrieved_chunk_ids": result["retrieved_ids"],
                         "latency_ms": result["latency_ms"],
                         "metrics": result["combined"],
+                        "expansion_applied": bool(result.get("expansion_map")),
+                        "expanded_error_codes": list(result.get("expansion_map", {}).keys()),
+                        "expanded_chunk_ids": [
+                            nid for ids in result.get("expansion_map", {}).values() for nid in ids
+                        ],
                     }
                 )
 
